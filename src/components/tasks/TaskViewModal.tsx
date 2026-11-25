@@ -231,8 +231,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
     mutationFn: ({ id, isTodo, data }: { id: string; isTodo: boolean; data: any }) => 
       isTodo ? utilityService.updateTodo(id, data) : taskService.update(id, data),
     onSuccess: () => {
+      // ["tasks"] also covers the Project > Tasks list (key ["tasks", "project", id]).
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["todos"] });
+      queryClient.invalidateQueries({ queryKey: ["lead-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["project-activity"] });
       toast({ title: "Saved" });
     },
     onError: (err: any) => {
@@ -328,6 +331,13 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
     const staff = (allStaffOptions || staffOptions).find(s => s.value === id);
     return staff ? staff.label : "Unknown";
   };
+
+  // Who created the task: the backend sends created_by_name; fall back to the staff list.
+  const creatorId = task.created_by && typeof task.created_by === "object" ? task.created_by._id : task.created_by;
+  const creatorName: string =
+    task.created_by_name ||
+    (creatorId ? (allStaffOptions || staffOptions).find(s => String(s.value) === String(creatorId))?.label : "") ||
+    "";
 
   // Setup > Settings > Tasks: timer round off + "Change task status to In Progress on timer started".
   const roundTimerHours = (seconds: number) => {
@@ -488,6 +498,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
             <div className="space-y-4">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Created at {task.dateadded ? formatDate(task.dateadded) : (task.createdAt ? formatDate(task.createdAt) : "Unknown Date")}
+                {creatorName && (
+                  <>
+                    {" "}by <span className="text-slate-700 normal-case">{creatorName}</span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <Button 

@@ -1,1408 +1,904 @@
-import { useState, useEffect, useMemo } from "react";
+// Reports: Sales, Expenses, Expenses vs Income, Leads Conversions, Timesheets,
+// KB Articles, Purchase. Every number comes from the company's own records
+// (no sample data). All pages share the same period filter and the same
+// export (PDF / Excel / CSV / Print) from lib/reportExport.
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area,
-  Legend
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Legend, ComposedChart,
 } from "recharts";
-import { 
-  Download, 
-  ChevronDown, 
-  FileSpreadsheet, 
-  FileJson, 
-  FileType, 
-  Printer,
-  HelpCircle,
-  Calendar,
-  FileText,
-  Package,
-  Wallet,
-  CreditCard,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  DollarSign,
-  User,
-  TrendingUp,
-  Clock,
-  Search
+import {
+  Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Loader2,
+  FileText, Package, Wallet, CreditCard, Users, AlertCircle, Search, TrendingUp, User,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip as ShadcnTooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { utilityService } from "@/api/services/utility.service";
 import { financeService } from "@/api/services/finance.service";
 import { supportService } from "@/api/services/support.service";
 import { staffService } from "@/api/services/staff.service";
 import { timeEntryService } from "@/api/services/time_entry.service";
 import { leadService } from "@/api/services/lead.service";
-import {
-  format,
-  startOfDay,
-  endOfDay,
-  startOfWeek,
-  endOfWeek,
-  subWeeks,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  subDays,
-  addDays,
-  isSameDay,
-  isWithinInterval,
-  getDaysInMonth,
-} from "date-fns";
-import { toast } from "sonner";
+import { taskService } from "@/api/services/task.service";
+import { projectService } from "@/api/services/project.service";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettings } from "@/context/SettingsContext";
+import { useCurrency } from "@/context/CurrencyContext";
+import { formatDate } from "@/lib/dateFormat";
+import { exportReport, type ExportKind, type ReportExportInput } from "@/lib/reportExport";
 
-const salesData = [
-  { month: "Jan", revenue: 12400, invoiced: 14000 }, { month: "Feb", revenue: 15800, invoiced: 17000 },
-  { month: "Mar", revenue: 18200, invoiced: 19500 }, { month: "Apr", revenue: 16900, invoiced: 18000 },
-  { month: "May", revenue: 21500, invoiced: 23000 }, { month: "Jun", revenue: 24100, invoiced: 26000 },
+// ════════════════════════════════════════════════════════════════════════════
+// Shared helpers
+// ════════════════════════════════════════════════════════════════════════════
+
+const COLORS = ["#1e3a5f", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16", "#64748b", "#f97316"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const toList = (d: any): any[] => {
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data;
+  if (Array.isArray(d?.data?.data)) return d.data.data;
+  return [];
+};
+const idOf = (v: any): string => String(v && typeof v === "object" ? v._id ?? "" : v ?? "");
+const personName = (s: any) => (s ? `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email || "" : "");
+const num = (v: any) => Number(v) || 0;
+const isObjectIdLike = (v: any) => typeof v === "string" && /^[0-9a-f]{24}$/i.test(v);
+const fmtDate = (v: any) => (v ? formatDate(v) : "-");
+const titleCase = (s: any) => String(s ?? "-").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+export const PERIODS = [
+  { value: "all_time", label: "All Time" },
+  { value: "today", label: "Today" },
+  { value: "this_week", label: "This Week" },
+  { value: "last_week", label: "Last Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "last_month", label: "Last Month" },
+  { value: "this_quarter", label: "This Quarter" },
+  { value: "this_year", label: "This Year" },
+  { value: "last_year", label: "Last Year" },
+  { value: "custom", label: "Custom Period" },
 ];
+const periodLabel = (p: string, from?: string, to?: string) =>
+  p === "custom" ? `${from ? fmtDate(from) : "start"} – ${to ? fmtDate(to) : "today"}` : PERIODS.find((x) => x.value === p)?.label || p;
 
-const expenseData = [
-  { month: "Jan", amount: 8200 }, { month: "Feb", amount: 9100 }, { month: "Mar", amount: 10400 },
-  { month: "Apr", amount: 9800 }, { month: "May", amount: 11200 }, { month: "Jun", amount: 12800 },
-];
+/** Same ranges as the backend (controllers/report_controller.js periodRange). null = all time. */
+export const periodRange = (period: string, from?: string, to?: string): { start?: Date; end?: Date } | null => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  const monday = (d: Date) => { const x = day(d); const wd = x.getDay(); x.setDate(x.getDate() - (wd === 0 ? 6 : wd - 1)); return x; };
+  switch (period) {
+    case "today": return { start: day(now), end: endOf(now) };
+    case "yesterday": { const d = new Date(now); d.setDate(d.getDate() - 1); return { start: day(d), end: endOf(d) }; }
+    case "this_week": { const s = monday(now); const e = new Date(s); e.setDate(e.getDate() + 6); return { start: s, end: endOf(e) }; }
+    case "last_week": { const s = monday(now); s.setDate(s.getDate() - 7); const e = new Date(s); e.setDate(e.getDate() + 6); return { start: s, end: endOf(e) }; }
+    case "this_month": return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+    case "last_month": return { start: new Date(y, m - 1, 1), end: new Date(y, m, 0, 23, 59, 59, 999) };
+    case "this_quarter": { const q = Math.floor(m / 3); return { start: new Date(y, q * 3, 1), end: new Date(y, q * 3 + 3, 0, 23, 59, 59, 999) }; }
+    case "this_year": return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59, 999) };
+    case "last_year": return { start: new Date(y - 1, 0, 1), end: new Date(y - 1, 11, 31, 23, 59, 59, 999) };
+    case "custom": {
+      const r: { start?: Date; end?: Date } = {};
+      if (from) r.start = new Date(`${from}T00:00:00`);
+      if (to) r.end = new Date(`${to}T23:59:59.999`);
+      return r.start || r.end ? r : null;
+    }
+    default: return null;
+  }
+};
 
-const expenseVsIncome = [
-  { month: "Jan", income: 12400, expenses: 8200 }, { month: "Feb", income: 15800, expenses: 9100 },
-  { month: "Mar", income: 18200, expenses: 10400 }, { month: "Apr", income: 16900, expenses: 9800 },
-  { month: "May", income: 21500, expenses: 11200 }, { month: "Jun", income: 24100, expenses: 12800 },
-];
+/** A date-only "YYYY-MM-DD" is read as local midnight, not UTC (so "today" stays today). */
+const toLocal = (v: any): Date | null => {
+  if (!v) return null;
+  const d = typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+};
+const inRange = (v: any, r: { start?: Date; end?: Date } | null) => {
+  if (!r) return true;
+  const d = toLocal(v);
+  if (!d) return false;
+  return (!r.start || d >= r.start) && (!r.end || d <= r.end);
+};
 
-const leadsBySource = [
-  { name: "Website", value: 35, fill: "hsl(213, 44%, 25%)" }, { name: "Referral", value: 25, fill: "hsl(152, 69%, 40%)" },
-  { name: "LinkedIn", value: 20, fill: "hsl(38, 92%, 50%)" }, { name: "Cold Call", value: 10, fill: "hsl(0, 70%, 55%)" },
-  { name: "Conference", value: 10, fill: "hsl(270, 60%, 50%)" },
-];
+/** Buckets for a time chart: by day for ranges up to ~2 months, else by month. */
+const timeBuckets = (dates: Date[], r: { start?: Date; end?: Date } | null) => {
+  const valid = dates.filter(Boolean);
+  const start = r?.start || (valid.length ? new Date(Math.min(...valid.map((d) => d.getTime()))) : new Date());
+  const end = r?.end && r.end < new Date(Date.now() + 366 * 864e5) ? r.end : valid.length ? new Date(Math.max(...valid.map((d) => d.getTime()), Date.now())) : new Date();
+  const days = Math.round((end.getTime() - start.getTime()) / 864e5) + 1;
+  const daily = days <= 62;
+  const keyOf = (d: Date) => (daily ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  const labelOf = (key: string) => {
+    const [yy, mm, dd] = key.split("-");
+    return daily ? `${dd} ${MONTHS[Number(mm) - 1]}` : `${MONTHS[Number(mm) - 1]} ${yy.slice(2)}`;
+  };
+  const keys: string[] = [];
+  const c = new Date(start.getFullYear(), start.getMonth(), daily ? start.getDate() : 1);
+  let guard = 0;
+  while (c <= end && guard++ < 400) {
+    keys.push(keyOf(c));
+    if (daily) c.setDate(c.getDate() + 1); else c.setMonth(c.getMonth() + 1);
+  }
+  return { keys, keyOf, labelOf, daily };
+};
 
-const timesheetData = [
-  { week: "W1", billable: 120, nonBillable: 40 }, { week: "W2", billable: 135, nonBillable: 35 },
-  { week: "W3", billable: 110, nonBillable: 50 }, { week: "W4", billable: 145, nonBillable: 30 },
-];
+const useMoney = (symbolOverride?: string) => {
+  const { symbol } = useCurrency();
+  const sym = symbolOverride || symbol || "₹";
+  return (n: any) => `${sym}${num(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
-const kbData = [
-  { month: "Jan", views: 450, articles: 8 }, { month: "Feb", views: 620, articles: 10 },
-  { month: "Mar", views: 780, articles: 12 }, { month: "Apr", views: 920, articles: 14 },
-];
+const useCompanyName = () => {
+  const { getSetting } = useSettings();
+  return String(getSetting("companyName", "") || "");
+};
 
-const ReportPage = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <DashboardLayout>
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div><h1 className="text-2xl font-bold">{title}</h1><p className="text-muted-foreground">Detailed {title.toLowerCase()} report</p></div>
-        <div className="flex gap-2">
-          <Select defaultValue="month"><SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="week">This Week</SelectItem><SelectItem value="month">This Month</SelectItem><SelectItem value="quarter">Quarter</SelectItem><SelectItem value="year">Year</SelectItem></SelectContent>
-          </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export
-                <ChevronDown className="h-3 w-3 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem className="gap-3 cursor-pointer">
-                <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                <span>Excel</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-3 cursor-pointer">
-                <FileJson className="h-4 w-4 text-blue-600" />
-                <span>CSV</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-3 cursor-pointer">
-                <FileType className="h-4 w-4 text-red-600" />
-                <span>PDF</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-3 cursor-pointer">
-                <Printer className="h-4 w-4 text-gray-600" />
-                <span>Print</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+function ExportMenu({ onExport, disabled }: { onExport: (k: ExportKind) => void; disabled?: boolean }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="h-9 gap-2 text-xs font-bold rounded-lg" disabled={disabled}>
+          <Download className="h-4 w-4" /> Export <ChevronDown className="h-3 w-3 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem onClick={() => onExport("pdf")} className="gap-3 cursor-pointer"><FileType className="h-4 w-4 text-red-600" />PDF</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onExport("xlsx")} className="gap-3 cursor-pointer"><FileSpreadsheet className="h-4 w-4 text-green-600" />Excel</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onExport("csv")} className="gap-3 cursor-pointer"><FileJson className="h-4 w-4 text-blue-600" />CSV</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onExport("print")} className="gap-3 cursor-pointer"><Printer className="h-4 w-4 text-gray-600" />Print</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+const runExport = async (kind: ExportKind, input: ReportExportInput) => {
+  try {
+    await exportReport(kind, input);
+    if (kind !== "print") toast.success(`Exported as ${kind === "xlsx" ? "Excel" : kind.toUpperCase()}`);
+  } catch (e) {
+    console.error(e);
+    toast.error("Could not create the export file");
+  }
+};
+
+function FilterLabel({ children }: { children: React.ReactNode }) {
+  return <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{children}</span>;
+}
+
+function PeriodFilter({
+  period, setPeriod, from, setFrom, to, setTo, options = PERIODS,
+}: {
+  period: string; setPeriod: (v: string) => void; from: string; setFrom: (v: string) => void; to: string; setTo: (v: string) => void;
+  options?: { value: string; label: string }[];
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <FilterLabel>Period</FilterLabel>
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-[150px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+          <SelectContent>{options.map((p) => <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
-      {children}
+      {period === "custom" && (
+        <>
+          <div className="flex flex-col gap-1.5"><FilterLabel>From</FilterLabel><Input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[140px] text-xs rounded-lg" /></div>
+          <div className="flex flex-col gap-1.5"><FilterLabel>To</FilterLabel><Input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="h-9 w-[140px] text-xs rounded-lg" /></div>
+        </>
+      )}
+    </>
+  );
+}
+
+function ReportHeader({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <p className="text-muted-foreground text-sm font-medium">{description}</p>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">{children}</div>
     </div>
-  </DashboardLayout>
+  );
+}
+
+function Kpi({ label, value, hint, tone = "text-foreground" }: { label: string; value: React.ReactNode; hint?: string; tone?: string }) {
+  return (
+    <Card className="rounded-2xl border-border/50 shadow-sm">
+      <CardContent className="p-4">
+        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className={`text-xl font-black mt-1 ${tone}`}>{value}</p>
+        {hint && <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartCard({ title, children, empty, height = 300 }: { title: string; children: React.ReactNode; empty?: boolean; height?: number }) {
+  return (
+    <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+      <CardHeader className="border-b border-border/40 py-3 px-5"><CardTitle className="text-sm font-bold">{title}</CardTitle></CardHeader>
+      <CardContent className="p-4">
+        {empty ? (
+          <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>No data for the selected filters</div>
+        ) : (
+          <div style={{ height }}><ResponsiveContainer width="100%" height="100%">{children as any}</ResponsiveContainer></div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const Loading = () => (
+  <Card className="h-80 flex items-center justify-center rounded-2xl"><Loader2 className="h-6 w-6 text-primary animate-spin" /></Card>
 );
 
+const compact = (v: any) => num(v).toLocaleString("en-IN", { notation: "compact", maximumFractionDigits: 1 });
+
+function SimplePie({ data, money }: { data: { name: string; value: number }[]; money?: (n: any) => string }) {
+  return (
+    <PieChart>
+      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} innerRadius={45} paddingAngle={2}>
+        {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+      </Pie>
+      <Tooltip formatter={(v: any, n: any) => [money ? money(v) : v, n]} />
+      <Legend wrapperStyle={{ fontSize: 11 }} />
+    </PieChart>
+  );
+}
+
+const statusTone = (s: string) => {
+  const v = String(s || "").toLowerCase();
+  if (["paid", "accepted", "active", "published", "closed", "complete", "converted"].includes(v)) return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+  if (["cancelled", "overdue", "declined", "void", "lost", "expired"].includes(v)) return "bg-red-500/10 text-red-700 border-red-500/20";
+  if (["unpaid", "draft", "sent", "open", "partially_paid", "partially paid", "pending"].includes(v)) return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+  return "bg-slate-500/10 text-slate-700 border-slate-500/20";
+};
+const StatusBadge = ({ s }: { s: string }) => <Badge variant="outline" className={`rounded-full text-[10px] font-bold uppercase ${statusTone(s)}`}>{titleCase(s)}</Badge>;
+
+// ════════════════════════════════════════════════════════════════════════════
+// Sales Report
+// ════════════════════════════════════════════════════════════════════════════
+
+const SALES_SUBREPORTS = [
+  { id: "invoices", label: "Invoices Report", icon: FileText },
+  { id: "items", label: "Items Report", icon: Package },
+  { id: "payments", label: "Payments Received", icon: Wallet },
+  { id: "credit_notes", label: "Credit Notes Report", icon: CreditCard },
+  { id: "proposals", label: "Proposals Report", icon: FileText },
+  { id: "estimates", label: "Estimates Report", icon: FileText },
+  { id: "customers", label: "Customers Report", icon: Users },
+] as const;
+type SalesSub = (typeof SALES_SUBREPORTS)[number]["id"];
+
 export const ReportSales = () => {
-  // Starts unresolved until the tenant's real default currency loads below —
-  // avoids hardcoding USD and querying against a currency that may not match any data.
   const [currency, setCurrency] = useState("");
   const [period, setPeriod] = useState("all_time");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  
-  const [activeTab, setActiveTab] = useState<"sales_report" | "charts_report">("sales_report");
-  const [selectedSubReport, setSelectedSubReport] = useState("invoices");
-  const [selectedChartType, setSelectedChartType] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [view, setView] = useState<"tables" | "charts">("tables");
+  const [sub, setSub] = useState<SalesSub>("invoices");
+  const companyName = useCompanyName();
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (type === "print") {
-      window.print();
-      return;
-    }
-    if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-      return;
-    }
-
-    // Export based on active selected report
-    let headers: string[] = [];
-    let rows: any[] = [];
-    let filename = `sales_report_${selectedSubReport}_${new Date().toISOString().split('T')[0]}.${type}`;
-
-    if (selectedSubReport === "invoices") {
-      headers = ["Invoice Number", "Customer", "Date", "Due Date", "Amount", "Tax", "Status"];
-      rows = invoicesReport.map((inv: any) => [
-        inv.number,
-        inv.clientName || "-",
-        formatRepDate(inv.date),
-        formatRepDate(inv.duedate),
-        inv.total,
-        inv.total_tax,
-        inv.status
-      ]);
-    } else if (selectedSubReport === "items") {
-      headers = ["Item Name", "Quantity Sold", "Total Revenue"];
-      rows = itemsReport.map((item: any) => [
-        item.name,
-        item.qtySold,
-        item.totalRevenue
-      ]);
-    } else if (selectedSubReport === "payments") {
-      headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date"];
-      rows = paymentsReport.map((p: any) => [
-        p.paymentId,
-        p.invoiceNumber,
-        p.paymentMode,
-        p.transactionId || "-",
-        p.amount,
-        formatRepDate(p.date)
-      ]);
-    } else if (selectedSubReport === "credit_notes") {
-      headers = ["Credit Note Number", "Customer", "Date", "Amount", "Status"];
-      rows = creditNotesReport.map((cn: any) => [
-        cn.number,
-        cn.clientName || "-",
-        formatRepDate(cn.date),
-        cn.total,
-        cn.status
-      ]);
-    } else if (selectedSubReport === "proposals") {
-      headers = ["Proposal Number", "Customer", "Subject", "Date", "Open Till", "Amount", "Status"];
-      rows = proposalsReport.map((prop: any) => [
-        prop.number,
-        prop.clientName || "-",
-        prop.subject,
-        formatRepDate(prop.date),
-        formatRepDate(prop.openTill),
-        prop.total,
-        prop.status
-      ]);
-    } else if (selectedSubReport === "estimates") {
-      headers = ["Estimate Number", "Customer", "Reference", "Date", "Expiry Date", "Amount", "Status"];
-      rows = estimatesReport.map((est: any) => [
-        est.number,
-        est.clientName || "-",
-        est.reference,
-        formatRepDate(est.date),
-        formatRepDate(est.expiryDate),
-        est.total,
-        est.status
-      ]);
-    } else if (selectedSubReport === "customers") {
-      headers = ["Customer Name", "Total Invoiced", "Total Paid", "Outstanding Balance"];
-      rows = customersReport.map((cust: any) => [
-        cust.clientName || "-",
-        cust.totalInvoiced,
-        cust.totalPaid,
-        cust.balance
-      ]);
-    }
-
-    if (rows.length === 0) {
-      toast.error("No data available to export");
-      return;
-    }
-
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success(`Exported successfully as ${type.toUpperCase()}`);
-  };
-
-  // Fetch active currencies
-  const { data: currenciesList = [] } = useQuery({
-    queryKey: ["currencies"],
-    queryFn: () => financeService.getCurrencies(),
+  const { data: currenciesList = [] } = useQuery({ queryKey: ["currencies"], queryFn: () => financeService.getCurrencies() });
+  const customIncomplete = period === "custom" && !from && !to;
+  const { data = {} as any, isLoading, isError } = useQuery({
+    queryKey: ["salesReport", currency, period, from, to],
+    queryFn: () => utilityService.getSalesReport(currency, period, from, to),
+    enabled: !customIncomplete,
   });
 
-  // Once currencies load, resolve the tenant's real default instead of assuming USD.
-  useEffect(() => {
-    if (!currency && currenciesList.length > 0) {
-      setCurrency(currenciesList.find((c: any) => c.isdefault)?.name || currenciesList[0]?.name || "USD");
-    }
-  }, [currency, currenciesList]);
+  const activeCurrency = data.currency || currency;
+  const symbol = toList(currenciesList).find((c: any) => c.name === activeCurrency)?.symbol;
+  const money = useMoney(symbol || (activeCurrency && activeCurrency !== "INR" ? `${activeCurrency} ` : undefined));
+  const usedCurrencies: { code: string; count: number }[] = data.currencies || [];
+  const s = data.summary || {};
+  const charts = data.charts || {};
+  const rows = {
+    invoices: data.invoicesReport || [],
+    items: data.itemsReport || [],
+    payments: data.paymentsReport || [],
+    credit_notes: data.creditNotesReport || [],
+    proposals: data.proposalsReport || [],
+    estimates: data.estimatesReport || [],
+    customers: data.customersReport || [],
+  } as Record<SalesSub, any[]>;
+  const sum = (list: any[], k: string) => list.reduce((a, r) => a + num(r[k]), 0);
 
-  // Fetch sales report data dynamically — wait until the default currency resolves.
-  const { data = {}, isLoading } = useQuery({
-    queryKey: ["salesReport", currency, period, fromDate, toDate],
-    queryFn: () => utilityService.getSalesReport(currency, period, fromDate, toDate),
-    enabled: !!currency,
-  });
-
-  const invoicesReport = data.invoicesReport || [];
-  const itemsReport = data.itemsReport || [];
-  const paymentsReport = data.paymentsReport || [];
-  const creditNotesReport = data.creditNotesReport || [];
-  const proposalsReport = data.proposalsReport || [];
-  const estimatesReport = data.estimatesReport || [];
-  const customersReport = data.customersReport || [];
-  const chartsData = data.charts || { incomeTrend: [], paymentModesDistribution: [], customerGroupsDistribution: [] };
-
-  const formatRepDate = (dateStr: any) => {
-    if (!dateStr) return "-";
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return "-";
-      return format(date, "yyyy-MM-dd");
-    } catch {
-      return "-";
+  // Table definition per sub-report: used for the screen AND the export.
+  const tableFor = (id: SalesSub) => {
+    const r = rows[id];
+    switch (id) {
+      case "invoices": return { headers: ["Invoice #", "Customer", "Date", "Due Date", "Tax", "Amount", "Status"], rows: r.map((x) => [x.number, x.clientName, fmtDate(x.date), fmtDate(x.duedate), money(x.total_tax), money(x.total), titleCase(x.status)]), footer: ["Total", `${r.length} invoices`, "", "", money(sum(r, "total_tax")), money(sum(r, "total")), ""], status: 6 };
+      case "items": return { headers: ["Item", "Quantity Sold", "Average Price", "Total Revenue"], rows: r.map((x) => [x.name, x.qtySold, money(x.avgPrice), money(x.totalRevenue)]), footer: ["Total", sum(r, "qtySold"), "", money(sum(r, "totalRevenue"))] };
+      case "payments": return { headers: ["Date", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount"], rows: r.map((x) => [fmtDate(x.date), x.invoiceNumber, x.clientName, x.paymentMode, x.transactionId, money(x.amount)]), footer: ["Total", `${r.length} payments`, "", "", "", money(sum(r, "amount"))] };
+      case "credit_notes": return { headers: ["Credit Note #", "Customer", "Date", "Amount", "Status"], rows: r.map((x) => [x.number, x.clientName, fmtDate(x.date), money(x.total), x.status]), footer: ["Total", "", "", money(sum(r, "total")), ""], status: 4 };
+      case "proposals": return { headers: ["Proposal #", "Subject", "To", "Date", "Open Till", "Amount", "Status"], rows: r.map((x) => [x.number, x.subject, x.clientName, fmtDate(x.date), fmtDate(x.openTill), money(x.total), x.status]), footer: ["Total", "", "", "", "", money(sum(r, "total")), ""], status: 6 };
+      case "estimates": return { headers: ["Estimate #", "Customer", "Reference", "Date", "Expiry Date", "Amount", "Status"], rows: r.map((x) => [x.number, x.clientName, x.reference, fmtDate(x.date), fmtDate(x.expiryDate), money(x.total), titleCase(x.status)]), footer: ["Total", "", "", "", "", money(sum(r, "total")), ""], status: 6 };
+      case "customers": return { headers: ["Customer", "Invoices", "Total Invoiced", "Total Received", "Outstanding"], rows: r.map((x) => [x.clientName, x.invoices, money(x.totalInvoiced), money(x.totalPaid), money(x.balance)]), footer: ["Total", sum(r, "invoices"), money(sum(r, "totalInvoiced")), money(sum(r, "totalPaid")), money(sum(r, "balance"))] };
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const s = status?.toLowerCase();
-    if (["paid", "accepted", "active"].includes(s)) {
-      return <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full font-bold text-xs uppercase px-2.5 py-0.5 shadow-none hover:bg-emerald-500/20">{status}</Badge>;
-    }
-    if (["unpaid", "draft", "sent"].includes(s)) {
-      return <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-full font-bold text-xs uppercase px-2.5 py-0.5 shadow-none hover:bg-amber-500/20">{status}</Badge>;
-    }
-    if (["cancelled", "overdue", "failed"].includes(s)) {
-      return <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 rounded-full font-bold text-xs uppercase px-2.5 py-0.5 shadow-none hover:bg-red-500/20">{status}</Badge>;
-    }
-    return <Badge className="bg-gray-500/10 text-gray-600 border border-gray-500/20 rounded-full font-bold text-xs uppercase px-2.5 py-0.5 shadow-none hover:bg-gray-500/20">{status}</Badge>;
-  };
-
-  // Sales report sub-menu items
-  const salesReportsList = [
-    { id: "invoices", label: "Invoices Report", icon: FileText },
-    { id: "items", label: "Items Report", icon: Package },
-    { id: "payments", label: "Payments Received", icon: Wallet },
-    { id: "credit_notes", label: "Credit Notes Report", icon: CreditCard },
-    { id: "proposals", label: "Proposals Report", icon: FileText },
-    { id: "estimates", label: "Estimates Report", icon: FileText },
-    { id: "customers", label: "Customers Report", icon: CheckCircle2 }
+  const kpis = [
+    { label: "Total Invoiced", value: money(s.totalInvoiced) },
+    { label: "Received", value: money(s.totalReceived) },
+    { label: "Outstanding", value: money(s.outstanding) },
+    { label: "Tax", value: money(s.totalTax) },
+    { label: "Invoices", value: String(s.invoiceCount || 0) },
+    { label: "Credit Notes", value: money(s.creditNotes) },
   ];
 
-  // Sum calculations
-  const totalInvoiceVal = invoicesReport.reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-  const totalTaxVal = invoicesReport.reduce((acc: number, item: any) => acc + (item.total_tax || 0), 0);
-  const totalItemRev = itemsReport.reduce((acc: number, item: any) => acc + (item.totalRevenue || 0), 0);
-  const totalItemQty = itemsReport.reduce((acc: number, item: any) => acc + (item.qtySold || 0), 0);
-  const totalPaymentVal = paymentsReport.reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
-  const totalCNVal = creditNotesReport.reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-  const totalPropVal = proposalsReport.reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-  const totalEstVal = estimatesReport.reduce((acc: number, item: any) => acc + (item.total || 0), 0);
-  const totalCustomerInv = customersReport.reduce((acc: number, item: any) => acc + (item.totalInvoiced || 0), 0);
-  const totalCustomerPaid = customersReport.reduce((acc: number, item: any) => acc + (item.totalPaid || 0), 0);
-
-  // Recharts colors
-  const COLORS = ["hsl(213, 44%, 25%)", "hsl(152, 69%, 40%)", "hsl(38, 92%, 50%)", "hsl(0, 70%, 55%)", "hsl(270, 60%, 50%)"];
-
-  // Custom prints/exports
-  const triggerPrint = () => {
-    window.print();
+  const onExport = (kind: ExportKind) => {
+    const subtitle = `Period: ${periodLabel(period, from, to)} · Currency: ${activeCurrency || "-"}`;
+    const sections = view === "tables"
+      ? [{ title: SALES_SUBREPORTS.find((x) => x.id === sub)!.label, ...tableFor(sub) }]
+      : [
+          { title: "Income by Month", headers: ["Month", "Invoiced", "Received"], rows: (charts.incomeTrend || []).map((m: any) => [m.label, money(m.invoiced), money(m.received)]) },
+          { title: "Payment Modes", headers: ["Mode", "Amount"], rows: (charts.paymentModesDistribution || []).map((m: any) => [m.name, money(m.value)]) },
+          { title: "Sales by Customer Group", headers: ["Group", "Amount"], rows: (charts.customerGroupsDistribution || []).map((m: any) => [m.name, money(m.value)]) },
+          { title: "Invoices by Status", headers: ["Status", "Invoices"], rows: (charts.invoiceStatusDistribution || []).map((m: any) => [titleCase(m.name), m.value]) },
+        ];
+    runExport(kind, { title: "Sales Report", subtitle, companyName, kpis, sections, fileName: `sales_report_${view === "tables" ? sub : "charts"}` });
   };
+
+  const t = tableFor(sub);
 
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in pb-12">
-        
-        {/* Header section with Page Title and Currency/Period Filters */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-background p-1.5 rounded-2xl">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sales Report</h1>
-            <p className="text-muted-foreground text-sm font-medium">Analyze sales performance, items sold, and transaction distributions</p>
+        <ReportHeader title="Sales Report" description="Invoices, items, payments, credit notes, proposals, estimates and customers — your company's data only">
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Currency</FilterLabel>
+            <Select value={activeCurrency || ""} onValueChange={setCurrency} disabled={usedCurrencies.length === 0}>
+              <SelectTrigger className="w-[120px] h-9 rounded-lg text-xs font-bold"><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                {usedCurrencies.map((c) => <SelectItem key={c.code} value={c.code} className="text-xs">{c.code} ({c.count})</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+          <ExportMenu onExport={onExport} disabled={isLoading} />
+        </ReportHeader>
 
-          <div className="flex flex-wrap items-center gap-4">
-            
-            {/* Currency Filter with Premium Tooltip */}
-            <div className="flex flex-col gap-1.5">
-              <TooltipProvider>
-                <ShadcnTooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 cursor-help text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                      <span>Currency</span>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/60" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent align="start" className="max-w-[260px] bg-card border border-border/80 p-3 rounded-xl shadow-xl">
-                    <p className="text-xs font-semibold leading-relaxed text-foreground">
-                      You need to select currency because you have invoices with different currency
-                    </p>
-                  </TooltipContent>
-                </ShadcnTooltip>
-              </TooltipProvider>
-              
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger className="w-[120px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none focus:ring-primary/20">
-                  <SelectValue placeholder="USD" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50 shadow-md">
-                  {currenciesList.length > 0 ? (
-                    currenciesList.map((cur: any) => (
-                      <SelectItem key={cur._id} value={cur.name || "USD"} className="text-xs font-medium">
-                        {cur.name} ({cur.symbol})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <>
-                      <SelectItem value="USD" className="text-xs font-medium">USD ($)</SelectItem>
-                      <SelectItem value="EUR" className="text-xs font-medium">EUR (€)</SelectItem>
-                      <SelectItem value="GBP" className="text-xs font-medium">GBP (£)</SelectItem>
-                      <SelectItem value="INR" className="text-xs font-medium">INR (₹)</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the sales report.</div>}
+        {customIncomplete && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose a From or To date for the custom period.</div>}
 
-            {/* Period Filter dropdown */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Period</span>
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[150px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none focus:ring-primary/20">
-                  <SelectValue placeholder="All Time" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50 shadow-md">
-                  <SelectItem value="all_time" className="text-xs font-medium">All Time</SelectItem>
-                  <SelectItem value="this_month" className="text-xs font-medium">This Month</SelectItem>
-                  <SelectItem value="last_month" className="text-xs font-medium">Last Month</SelectItem>
-                  <SelectItem value="this_quarter" className="text-xs font-medium">This Quarter</SelectItem>
-                  <SelectItem value="this_year" className="text-xs font-medium">This Year</SelectItem>
-                  <SelectItem value="custom" className="text-xs font-medium">Custom Period</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Custom period inputs */}
-            {period === "custom" && (
-              <div className="flex items-end gap-2 animate-in fade-in slide-in-from-top-1">
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">From</span>
-                  <Input 
-                    type="date" 
-                    value={fromDate} 
-                    onChange={(e) => setFromDate(e.target.value)} 
-                    className="h-9 w-32 text-xs rounded-lg border-border/45 bg-background focus:ring-primary/20"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">To</span>
-                  <Input 
-                    type="date" 
-                    value={toDate} 
-                    onChange={(e) => setToDate(e.target.value)} 
-                    className="h-9 w-32 text-xs rounded-lg border-border/45 bg-background focus:ring-primary/20"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Print & Export Button */}
-            <div className="flex items-end self-end">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                    <Download className="h-4 w-4" />
-                    Export
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 bg-white">
-                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                    <span>Excel</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                    <FileJson className="h-4 w-4 text-blue-600" />
-                    <span>CSV</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                    <FileType className="h-4 w-4 text-red-600" />
-                    <span>PDF</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                    <Printer className="h-4 w-4 text-gray-600" />
-                    <span>Print</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          {kpis.map((k) => <Kpi key={k.label} label={k.label} value={isLoading ? "…" : k.value} />)}
         </div>
 
-        {/* Primary Tabs Toggle between Sales Report & Charts Based Report */}
-        <div className="flex border-b border-border/40 p-0.5 gap-2 bg-accent/5 rounded-xl max-w-sm">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setActiveTab("sales_report")}
-            className={`flex-1 rounded-lg text-xs font-bold transition-all ${activeTab === "sales_report" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-transparent"}`}
-          >
-            Sales Report
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setActiveTab("charts_report")}
-            className={`flex-1 rounded-lg text-xs font-bold transition-all ${activeTab === "charts_report" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-transparent"}`}
-          >
-            Charts Based Report
-          </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant={view === "tables" ? "default" : "outline"} className="rounded-lg" onClick={() => setView("tables")}>Sales Report</Button>
+          <Button size="sm" variant={view === "charts" ? "default" : "outline"} className="rounded-lg" onClick={() => setView("charts")}>Charts Based Report</Button>
         </div>
 
-        {/* Tab Contents: SALES REPORT TABLES (Index sidebar style) */}
-        {activeTab === "sales_report" && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* Desktop Left Index Sidebar */}
-            <Card className="lg:col-span-1 border-border/50 shadow-sm rounded-2xl h-fit overflow-hidden">
-              <CardHeader className="bg-accent/10 border-b border-border/40 p-4">
-                <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Select Sub-Report</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2 space-y-1">
-                {salesReportsList.map((rep) => {
-                  const Icon = rep.icon;
-                  const isSelected = selectedSubReport === rep.id;
-                  return (
-                    <Button
-                      key={rep.id}
-                      variant="ghost"
-                      onClick={() => setSelectedSubReport(rep.id)}
-                      className={`w-full justify-start gap-2.5 text-xs font-semibold px-3.5 py-5 rounded-xl transition-all ${
-                        isSelected 
-                          ? "bg-primary text-primary-foreground shadow-sm shadow-primary/10" 
-                          : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Icon className={`h-4 w-4 ${isSelected ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"}`} />
-                      {rep.label}
-                    </Button>
-                  );
-                })}
-              </CardContent>
+        {isLoading ? <Loading /> : view === "tables" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
+            <Card className="rounded-2xl p-2 h-fit">
+              {SALES_SUBREPORTS.map((r) => (
+                <button key={r.id} onClick={() => setSub(r.id)} className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-left transition-colors ${sub === r.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                  <span className="flex items-center gap-2"><r.icon className="h-4 w-4" />{r.label}</span>
+                  <span className="text-[10px] font-black opacity-70">{rows[r.id].length}</span>
+                </button>
+              ))}
             </Card>
-
-            {/* Mobile Dropdown Index Selector (Visible only on screens below lg) */}
-            <div className="lg:hidden w-full">
-              <Select value={selectedSubReport} onValueChange={setSelectedSubReport}>
-                <SelectTrigger className="w-full h-10 rounded-xl border-border/45 bg-card text-xs font-bold">
-                  <SelectValue placeholder="Invoices Report" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50 shadow-md">
-                  {salesReportsList.map((rep) => (
-                    <SelectItem key={rep.id} value={rep.id} className="text-xs font-medium">
-                      {rep.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Right Side Tables Content */}
-            <Card className="lg:col-span-3 overflow-hidden">
-              <CardHeader className="bg-accent/5 border-b border-border/40 p-5 flex flex-row items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <CardTitle className="text-base font-bold">
-                    {salesReportsList.find(r => r.id === selectedSubReport)?.label}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground font-semibold mt-1">
-                    Displaying calculated entries for currency {currency} and selected date filters.
-                  </p>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  {isLoading ? (
-                    <div className="h-64 flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 text-primary animate-spin" />
-                    </div>
-                  ) : (
-                    <>
-                      {/* 1. INVOICES SUB-REPORT */}
-                      {selectedSubReport === "invoices" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Invoice Number</TableHead>
-                              <TableHead>Client</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Due Date</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Total Tax</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {invoicesReport.length > 0 ? (
-                              invoicesReport.map((inv: any) => (
-                                <TableRow key={inv._id}>
-                                  <TableCell className="font-medium">{inv.number}</TableCell>
-                                  <TableCell>{inv.clientName}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(inv.date)}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(inv.duedate)}</TableCell>
-                                  <TableCell>{currency} {inv.total?.toFixed(2)}</TableCell>
-                                  <TableCell className="text-muted-foreground">{currency} {inv.total_tax?.toFixed(2)}</TableCell>
-                                  <TableCell>{getStatusBadge(inv.status)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={7}>No invoice records found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell colSpan={4} className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalInvoiceVal.toFixed(2)}</TableCell>
-                              <TableCell className="text-muted-foreground">{currency} {totalTaxVal.toFixed(2)}</TableCell>
-                              <TableCell></TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 2. ITEMS SUB-REPORT */}
-                      {selectedSubReport === "items" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Item Name</TableHead>
-                              <TableHead>Quantity Sold</TableHead>
-                              <TableHead>Average Price</TableHead>
-                              <TableHead>Total Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {itemsReport.length > 0 ? (
-                              itemsReport.map((it: any, index: number) => (
-                                <TableRow key={index}>
-                                  <TableCell className="font-medium">{it.name}</TableCell>
-                                  <TableCell>{it.qtySold}</TableCell>
-                                  <TableCell className="text-muted-foreground">{currency} {it.avgPrice?.toFixed(2)}</TableCell>
-                                  <TableCell>{currency} {it.totalRevenue?.toFixed(2)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={4}>No item sales records found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{totalItemQty}</TableCell>
-                              <TableCell></TableCell>
-                              <TableCell className="text-primary">{currency} {totalItemRev.toFixed(2)}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 3. PAYMENTS RECEIVED */}
-                      {selectedSubReport === "payments" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Payment ID</TableHead>
-                              <TableHead>Invoice #</TableHead>
-                              <TableHead>Payment Mode</TableHead>
-                              <TableHead>Transaction ID</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Amount</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {paymentsReport.length > 0 ? (
-                              paymentsReport.map((p: any) => (
-                                <TableRow key={p._id}>
-                                  <TableCell className="font-medium">{p.paymentId}</TableCell>
-                                  <TableCell>{p.invoiceNumber}</TableCell>
-                                  <TableCell className="text-muted-foreground">{p.paymentMode}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.transactionId}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(p.date)}</TableCell>
-                                  <TableCell>{currency} {p.amount?.toFixed(2)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={6}>No payments received found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalPaymentVal.toFixed(2)}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 4. CREDIT NOTES */}
-                      {selectedSubReport === "credit_notes" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Credit Note #</TableHead>
-                              <TableHead>Client</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Remaining Balance</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {creditNotesReport.length > 0 ? (
-                              creditNotesReport.map((cn: any) => (
-                                <TableRow key={cn._id}>
-                                  <TableCell className="font-medium">{cn.number}</TableCell>
-                                  <TableCell>{cn.clientName}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(cn.date)}</TableCell>
-                                  <TableCell>{currency} {cn.total?.toFixed(2)}</TableCell>
-                                  <TableCell>{currency} {cn.remaining?.toFixed(2)}</TableCell>
-                                  <TableCell>{getStatusBadge(cn.status)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={6}>No credit notes found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell colSpan={3} className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalCNVal.toFixed(2)}</TableCell>
-                              <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 5. PROPOSALS SUB-REPORT */}
-                      {selectedSubReport === "proposals" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Proposal Number</TableHead>
-                              <TableHead>Subject</TableHead>
-                              <TableHead>Client</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Open Till</TableHead>
-                              <TableHead>Total Value</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {proposalsReport.length > 0 ? (
-                              proposalsReport.map((prop: any) => (
-                                <TableRow key={prop._id}>
-                                  <TableCell className="font-medium">{prop.number}</TableCell>
-                                  <TableCell className="max-w-[150px] truncate">{prop.subject}</TableCell>
-                                  <TableCell>{prop.clientName}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(prop.date)}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(prop.openTill)}</TableCell>
-                                  <TableCell>{currency} {prop.total?.toFixed(2)}</TableCell>
-                                  <TableCell>{getStatusBadge(prop.status)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={7}>No proposal records found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalPropVal.toFixed(2)}</TableCell>
-                              <TableCell></TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 6. ESTIMATES SUB-REPORT */}
-                      {selectedSubReport === "estimates" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Estimate Number</TableHead>
-                              <TableHead>Reference</TableHead>
-                              <TableHead>Client</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Expiry Date</TableHead>
-                              <TableHead>Total Value</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {estimatesReport.length > 0 ? (
-                              estimatesReport.map((est: any) => (
-                                <TableRow key={est._id}>
-                                  <TableCell className="font-medium">{est.number}</TableCell>
-                                  <TableCell className="text-muted-foreground">{est.reference}</TableCell>
-                                  <TableCell>{est.clientName}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(est.date)}</TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(est.expiryDate)}</TableCell>
-                                  <TableCell>{currency} {est.total?.toFixed(2)}</TableCell>
-                                  <TableCell>{getStatusBadge(est.status)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={7}>No estimate records found</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalEstVal.toFixed(2)}</TableCell>
-                              <TableCell></TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* 7. CUSTOMERS REPORT */}
-                      {selectedSubReport === "customers" && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Client Name</TableHead>
-                              <TableHead>Total Invoiced</TableHead>
-                              <TableHead>Total Paid</TableHead>
-                              <TableHead>Outstanding Balance</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {customersReport.length > 0 ? (
-                              customersReport.map((c: any, index: number) => (
-                                <TableRow key={index}>
-                                  <TableCell className="font-medium">{c.clientName}</TableCell>
-                                  <TableCell>{currency} {c.totalInvoiced?.toFixed(2)}</TableCell>
-                                  <TableCell className="text-emerald-600">{currency} {c.totalPaid?.toFixed(2)}</TableCell>
-                                  <TableCell className="text-red-500">{currency} {c.balance?.toFixed(2)}</TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableEmpty colSpan={4}>No customer invoicing summaries</TableEmpty>
-                            )}
-                            <TableRow className="bg-muted/30 font-semibold">
-                              <TableCell className="text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="text-primary">{currency} {totalCustomerInv.toFixed(2)}</TableCell>
-                              <TableCell className="text-emerald-600">{currency} {totalCustomerPaid.toFixed(2)}</TableCell>
-                              <TableCell className="text-red-500">{currency} {(totalCustomerInv - totalCustomerPaid).toFixed(2)}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Tab Contents: CHARTS BASED REPORTS */}
-        {activeTab === "charts_report" && (
-          <div className="space-y-6">
-            
-            {/* Chart Sub-Menu Toggle Dropdown/Buttons */}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant={selectedChartType === "all" ? "default" : "outline"}
-                onClick={() => setSelectedChartType("all")}
-                className="text-xs font-bold rounded-lg shadow-none"
-              >
-                All Charts Overview
-              </Button>
-              <Button
-                variant={selectedChartType === "income" ? "default" : "outline"}
-                onClick={() => setSelectedChartType("income")}
-                className="text-xs font-bold rounded-lg shadow-none"
-              >
-                Total Income
-              </Button>
-              <Button
-                variant={selectedChartType === "payment_modes" ? "default" : "outline"}
-                onClick={() => setSelectedChartType("payment_modes")}
-                className="text-xs font-bold rounded-lg shadow-none"
-              >
-                Payment Modes
-              </Button>
-              <Button
-                variant={selectedChartType === "customer_groups" ? "default" : "outline"}
-                onClick={() => setSelectedChartType("customer_groups")}
-                className="text-xs font-bold rounded-lg shadow-none"
-              >
-                Customer Groups
-              </Button>
-            </div>
-
-            {isLoading ? (
-              <Card className="h-96 flex items-center justify-center border-border/50 shadow-sm rounded-2xl">
-                <Loader2 className="h-6 w-6 text-primary animate-spin" />
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* 1. TOTAL INCOME (Monthly revenue trend) */}
-                {(selectedChartType === "all" || selectedChartType === "income") && (
-                  <Card className={`border-border/50 shadow-sm rounded-2xl overflow-hidden ${selectedChartType === "income" ? "md:col-span-2" : ""}`}>
-                    <CardHeader className="bg-accent/5 border-b border-border/40 p-5">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-primary" />
-                        Total Income ({currency})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="h-[320px]">
-                        <ResponsiveContainer width="100%" height={320}>
-                          <AreaChart data={chartsData.incomeTrend}>
-                            <defs>
-                              <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.25}/>
-                                <stop offset="95%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.01}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                            <XAxis dataKey="label" stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
-                            <Tooltip />
-                            <Area type="monotone" dataKey="amount" stroke="hsl(213, 44%, 25%)" strokeWidth={2} fillOpacity={1} fill="url(#incomeGrad)" name="Income" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 2. PAYMENT MODES (Transactions distribution pie chart) */}
-                {(selectedChartType === "all" || selectedChartType === "payment_modes") && (
-                  <Card className={`border-border/50 shadow-sm rounded-2xl overflow-hidden ${selectedChartType === "payment_modes" ? "md:col-span-2" : ""}`}>
-                    <CardHeader className="bg-accent/5 border-b border-border/40 p-5">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <Wallet className="h-4 w-4 text-emerald-600" />
-                        Payment Modes (Transactions Distribution)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 flex flex-col xl:flex-row items-center justify-around gap-6">
-                      <div className="h-[280px] w-full max-w-[280px]">
-                        <ResponsiveContainer width="100%" height={280}>
-                          <PieChart>
-                            <Pie 
-                              data={chartsData.paymentModesDistribution} 
-                              dataKey="value" 
-                              nameKey="name" 
-                              cx="50%" 
-                              cy="50%" 
-                              innerRadius={60}
-                              outerRadius={100} 
-                              paddingAngle={3}
-                            >
-                              {chartsData.paymentModesDistribution.map((entry: any, index: number) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      
-                      {/* Legends */}
-                      <div className="space-y-3.5 w-full xl:w-fit">
-                        {chartsData.paymentModesDistribution.map((item: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between gap-4 font-semibold text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                              <span className="text-muted-foreground">{item.name}</span>
-                            </div>
-                            <span className="text-gray-800 font-extrabold">{currency} {item.value?.toLocaleString()}</span>
-                          </div>
+            <Card className="rounded-2xl overflow-hidden">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">{SALES_SUBREPORTS.find((x) => x.id === sub)?.label}</CardTitle></CardHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow>{t.headers.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                  <TableBody>
+                    {t.rows.length === 0 ? <TableEmpty colSpan={t.headers.length}>No records for the selected filters.</TableEmpty> : (
+                      <>
+                        {t.rows.map((r, i) => (
+                          <TableRow key={i}>
+                            {r.map((c, j) => <TableCell key={j} className={j === 0 ? "font-medium" : ""}>{(t as any).status === j ? <StatusBadge s={String(c)} /> : c}</TableCell>)}
+                          </TableRow>
                         ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 3. TOTAL VALUE BY CUSTOMER GROUPS (Horizontal Bar Chart) */}
-                {(selectedChartType === "all" || selectedChartType === "customer_groups") && (
-                  <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden md:col-span-2">
-                    <CardHeader className="bg-accent/5 border-b border-border/40 p-5">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-amber-500" />
-                        Total Value By Customer Groups
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="h-[320px]">
-                        <ResponsiveContainer width="100%" height={320}>
-                          <BarChart data={chartsData.customerGroupsDistribution} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                            <XAxis type="number" stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
-                            <YAxis type="category" dataKey="name" stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} width={130} />
-                            <Tooltip />
-                            <Bar dataKey="value" fill="hsl(152, 69%, 40%)" radius={[0, 4, 4, 0]} name="Value" barSize={25} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                        <TableRow className="bg-muted/40 font-bold">{t.footer.map((c, j) => <TableCell key={j}>{c}</TableCell>)}</TableRow>
+                      </>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-            )}
+            </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="lg:col-span-2">
+              <ChartCard title="Income by Month — Invoiced vs Received" empty={!(charts.incomeTrend || []).length} height={320}>
+                <BarChart data={charts.incomeTrend || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} />
+                  <YAxis fontSize={11} tickFormatter={compact} />
+                  <Tooltip formatter={(v: any, n: any) => [money(v), n]} />
+                  <Legend />
+                  <Bar dataKey="invoiced" name="Invoiced" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="received" name="Received" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+            </div>
+            <ChartCard title="Payments by Payment Mode" empty={!(charts.paymentModesDistribution || []).length}><SimplePie data={charts.paymentModesDistribution || []} money={money} /></ChartCard>
+            <ChartCard title="Sales by Customer Group" empty={!(charts.customerGroupsDistribution || []).length}><SimplePie data={charts.customerGroupsDistribution || []} money={money} /></ChartCard>
+            <ChartCard title="Invoices by Status" empty={!(charts.invoiceStatusDistribution || []).length}><SimplePie data={(charts.invoiceStatusDistribution || []).map((d: any) => ({ ...d, name: titleCase(d.name) }))} /></ChartCard>
+            <ChartCard title="Top 10 Items by Revenue" empty={!rows.items.length}>
+              <BarChart data={rows.items.slice(0, 10)} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" fontSize={11} tickFormatter={compact} />
+                <YAxis type="category" dataKey="name" width={130} fontSize={10} />
+                <Tooltip formatter={(v: any) => [money(v), "Revenue"]} />
+                <Bar dataKey="totalRevenue" fill={COLORS[4]} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ChartCard>
           </div>
         )}
       </div>
     </DashboardLayout>
   );
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// Expenses Report
+// ════════════════════════════════════════════════════════════════════════════
 
 export const ReportExpenses = () => {
   const [year, setYear] = useState(new Date().getFullYear());
   const [excludeBillable, setExcludeBillable] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [currency, setCurrency] = useState("USD");
+  const money = useMoney();
+  const companyName = useCompanyName();
 
-  const { data: currenciesList = [] } = useQuery({
-    queryKey: ["currencies"],
-    queryFn: () => financeService.getCurrencies(),
-  });
-
-  const { data = {}, isLoading } = useQuery({
+  const { data = {} as any, isLoading, isError } = useQuery({
     queryKey: ["expensesReport", year, excludeBillable],
     queryFn: () => utilityService.getExpensesReport(year, excludeBillable),
   });
-
-  const categoriesReport = data.categoriesReport || [];
-  const netAmountSubtotal = data.netAmountSubtotal || Array(12).fill(0);
-  const totalTax = data.totalTax || Array(12).fill(0);
-  const overallTotal = data.overallTotal || Array(12).fill(0);
-  const overallTotalYear = data.overallTotalYear || 0;
-  const rawExpenses = data.expenses || [];
+  const categories: any[] = data.categoriesReport || [];
+  const monthTotals: number[] = data.overallTotal || Array(12).fill(0);
+  const yearTotal = num(data.overallTotalYear);
+  const expenses: any[] = data.expenses || [];
+  const years: number[] = data.years || [new Date().getFullYear()];
   const charts = data.charts || { billableByCategory: [], nonBillableByCategory: [] };
+  const billableTotal = expenses.filter((e) => e.billable).reduce((a, e) => a + num(e.amount), 0);
+  const monthly = MONTHS.map((m, i) => ({ month: m, amount: monthTotals[i] || 0 }));
 
-  const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const COLORS = ["hsl(213, 44%, 25%)", "hsl(152, 69%, 40%)", "hsl(38, 92%, 50%)", "hsl(0, 70%, 55%)", "hsl(270, 60%, 50%)"];
-
-  // Total sums
-  const netSumYear = netAmountSubtotal.reduce((a: number, b: number) => a + b, 0);
-  const taxSumYear = totalTax.reduce((a: number, b: number) => a + b, 0);
-
-  const handlePrint = () => {
-    window.print();
+  const matrix = {
+    headers: ["Category", ...MONTHS, "Year Total"],
+    rows: categories.map((c) => [c.name, ...c.months.map((v: number) => (v ? money(v) : "-")), money(c.total)]),
+    footer: ["Total", ...monthTotals.map((v) => money(v)), money(yearTotal)],
+  };
+  const details = {
+    headers: ["Date", "Name", "Category", "Customer", "Project", "Payment Mode", "Ref No.", "Billable", "Amount"],
+    rows: expenses.map((e) => [fmtDate(e.date), e.name || "-", e.category, e.customer || "-", e.project || "-", e.paymentmode || "-", e.reference_no || "-", e.billable ? (e.invoiced ? "Yes (invoiced)" : "Yes") : "No", money(e.amount)]),
+    footer: ["Total", `${expenses.length} expenses`, "", "", "", "", "", "", money(yearTotal)],
   };
 
-  const exportCSV = () => {
-    let csv = "Category," + MONTH_NAMES.join(",") + ",Total\n";
-    categoriesReport.forEach((row: any) => {
-      csv += `"${row.name}",${row.months.join(",")},${row.total}\n`;
+  const onExport = (kind: ExportKind) =>
+    runExport(kind, {
+      title: "Expenses Report",
+      subtitle: `Year: ${year}${excludeBillable ? " · Billable expenses excluded" : ""}`,
+      companyName,
+      kpis: [
+        { label: "Total Expenses", value: money(yearTotal) },
+        { label: "Billable", value: money(billableTotal) },
+        { label: "Not Billable", value: money(yearTotal - billableTotal) },
+        { label: "Expenses", value: String(expenses.length) },
+        { label: "Categories", value: String(categories.length) },
+      ],
+      sections: [{ title: `Expenses by Category — ${year}`, ...matrix }, { title: "Expense Details", ...details }],
+      fileName: `expenses_report_${year}`,
     });
-    csv += `"Net Amount (Subtotal)",${netAmountSubtotal.join(",")},${netSumYear}\n`;
-    csv += `"Total Tax",${totalTax.join(",")},${taxSumYear}\n`;
-    csv += `"Total",${overallTotal.join(",")},${overallTotalYear}\n`;
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `expenses_report_${year}.csv`);
-    link.click();
-  };
-
-  const activeCurrencySymbol = currenciesList.find((c: any) => c.name === currency)?.symbol || "₹";
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-12 print:p-0 print:space-y-4">
-        
-        {/* Header segment with premium controls */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-background p-1.5 rounded-2xl print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Expenses Report</h1>
-            <p className="text-muted-foreground text-sm font-medium">Review and analyze company expenditures grouped by category and billable state</p>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title="Expenses Report" description="Your company's expenses by category and month">
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Year</FilterLabel>
+            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
+              <SelectTrigger className="w-[100px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map((y) => <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            
-            {/* Currency Selector */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Currency</span>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger className="w-[100px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none">
-                  <SelectValue placeholder="USD" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50">
-                  {currenciesList.length > 0 ? (
-                    currenciesList.map((cur: any) => (
-                      <SelectItem key={cur._id} value={cur.name || "USD"} className="text-xs font-medium">
-                        {cur.name} ({cur.symbol})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <>
-                      <SelectItem value="USD" className="text-xs font-medium">USD ($)</SelectItem>
-                      <SelectItem value="EUR" className="text-xs font-medium">EUR (€)</SelectItem>
-                      <SelectItem value="INR" className="text-xs font-medium">INR (₹)</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Year Selector */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Year</span>
-              <Select value={year.toString()} onValueChange={(val) => setYear(parseInt(val))}>
-                <SelectTrigger className="w-[100px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50">
-                  <SelectItem value="2026" className="text-xs font-medium">2026</SelectItem>
-                  <SelectItem value="2025" className="text-xs font-medium">2025</SelectItem>
-                  <SelectItem value="2024" className="text-xs font-medium">2024</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Print & Download Panel */}
-            <div className="flex items-center gap-2 pt-5">
-              <Button 
-                onClick={handlePrint} 
-                variant="outline" 
-                size="sm" 
-                className="h-9 rounded-lg border-border/50 text-xs font-bold gap-2"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                Print PDF
-              </Button>
-              
-              <Button 
-                onClick={exportCSV} 
-                variant="outline" 
-                size="sm" 
-                className="h-9 rounded-lg border-border/50 text-xs font-bold gap-2"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
-              </Button>
-
-              <Button 
-                onClick={() => setShowDetails(!showDetails)} 
-                variant={showDetails ? "default" : "outline"} 
-                size="sm" 
-                className="h-9 rounded-lg border-border/50 text-xs font-bold gap-2"
-              >
-                Detailed Report
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters bar with Checkboxes */}
-        <div className="flex items-center gap-6 bg-accent/5 p-4 rounded-xl border border-border/40 print:hidden">
-          <label className="flex items-center gap-2 cursor-pointer font-bold text-xs uppercase tracking-wider text-muted-foreground select-none">
-            <input 
-              type="checkbox" 
-              checked={excludeBillable} 
-              onChange={(e) => setExcludeBillable(e.target.checked)}
-              className="h-4 w-4 rounded border-border/50 text-primary focus:ring-primary/20 cursor-pointer"
-            />
-            <span>Exclude Billable Expenses</span>
+          <label className="flex items-center gap-2 h-9 cursor-pointer text-xs font-bold text-muted-foreground select-none">
+            <input type="checkbox" checked={excludeBillable} onChange={(e) => setExcludeBillable(e.target.checked)} className="h-4 w-4" /> Exclude billable
           </label>
+          <Button variant={showDetails ? "default" : "outline"} className="h-9 rounded-lg text-xs font-bold" onClick={() => setShowDetails(!showDetails)}>Detailed Report</Button>
+          <ExportMenu onExport={onExport} disabled={isLoading} />
+        </ReportHeader>
+
+        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the expenses report.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label="Total Expenses" value={money(yearTotal)} hint={`Year ${year}`} tone="text-red-600" />
+          <Kpi label="Billable" value={money(billableTotal)} />
+          <Kpi label="Not Billable" value={money(yearTotal - billableTotal)} />
+          <Kpi label="Expenses" value={expenses.length} hint={`${categories.length} categories`} />
         </div>
 
-        {isLoading ? (
-          <Card className="h-96 flex items-center justify-center border-border/50 shadow-sm rounded-2xl">
-            <Loader2 className="h-6 w-6 text-primary animate-spin" />
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            
-            {/* 1. Matrix Table */}
-            <Card className="overflow-hidden print:border-none print:shadow-none">
-              <CardHeader className="bg-accent/5 border-b border-border/40 p-5 print:p-2">
-                <CardTitle className="text-sm font-bold flex items-center justify-between">
-                  <span>Expenses Matrix - Year {year}</span>
-                  <span className="text-muted-foreground text-xs font-semibold print:hidden">
-                    Values shown in {currency} ({activeCurrencySymbol})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[1000px] text-left">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Category</TableHead>
-                      {MONTH_NAMES.map((m) => (
-                        <TableHead key={m} className="text-right">{m}</TableHead>
-                      ))}
-                      <TableHead className="text-right">Year Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
+        {isLoading ? <Loading /> : (
+          <>
+            <Card className="rounded-2xl overflow-hidden">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Expenses by Category — {year}</CardTitle></CardHeader>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1100px]">
+                  <TableHeader><TableRow>{matrix.headers.map((h, i) => <TableHead key={h} className={i ? "text-right" : ""}>{h}</TableHead>)}</TableRow></TableHeader>
                   <TableBody>
-                    {/* Category Rows */}
-                    {categoriesReport.map((row: any) => (
-                      <TableRow key={row.name}>
-                        <TableCell className="font-medium">{row.name}</TableCell>
-                        {row.months.map((val: number, idx: number) => (
-                          <TableCell key={idx} className="text-right text-muted-foreground">
-                            {val > 0 ? `${activeCurrencySymbol}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
-                          </TableCell>
-                        ))}
-                        <TableCell className="text-right font-semibold bg-accent/5">
-                          {activeCurrencySymbol}{row.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    {/* Net Amount Row */}
-                    <TableRow className="bg-muted/30 font-semibold">
-                      <TableCell>Net Amount (Subtotal)</TableCell>
-                      {netAmountSubtotal.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-right text-muted-foreground">
-                          {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right bg-accent/5">
-                        {activeCurrencySymbol}{netSumYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Total Tax Row */}
-                    <TableRow className="bg-muted/30 font-semibold">
-                      <TableCell>Total Tax</TableCell>
-                      {totalTax.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-right text-muted-foreground">
-                          {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right bg-accent/5">
-                        {activeCurrencySymbol}{taxSumYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Total Row */}
-                    <TableRow className="bg-primary/5 text-primary font-semibold">
-                      <TableCell>Total</TableCell>
-                      {overallTotal.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-right text-primary">
-                          {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right text-primary bg-primary/10">
-                        {activeCurrencySymbol}{overallTotalYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
-                    </TableRow>
+                    {matrix.rows.length === 0 ? <TableEmpty colSpan={matrix.headers.length}>No expenses in {year}.</TableEmpty> : (
+                      <>
+                        {matrix.rows.map((r, i) => <TableRow key={i}>{r.map((c, j) => <TableCell key={j} className={j ? "text-right text-muted-foreground" : "font-medium"}>{c}</TableCell>)}</TableRow>)}
+                        <TableRow className="bg-primary/5 font-bold">{matrix.footer.map((c, j) => <TableCell key={j} className={j ? "text-right" : ""}>{c}</TableCell>)}</TableRow>
+                      </>
+                    )}
                   </TableBody>
                 </Table>
-              </CardContent>
+              </div>
             </Card>
 
-            {/* 2. Charts segment (Side by side BarCharts on light gray background) */}
-            <div className="bg-gray-50 p-6 rounded-2xl border border-border/40 grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
-              
-              {/* Left Chart: Not billable expenses by categories */}
-              <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-xl overflow-hidden">
-                <CardHeader className="bg-white border-b border-border/20 p-5">
-                  <CardTitle className="text-sm font-bold text-gray-800 tracking-tight font-sans">
-                    Not billable expenses by categories
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="h-[280px]">
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={[
-                        { name: "Bathroom Accessories", value: 0.05 },
-                        { name: "Salary Calculation", value: 0.01 }
-                      ]}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#888888" 
-                          fontSize={11} 
-                          fontWeight={500}
-                          tickLine={false} 
-                          axisLine={false} 
-                          dy={10}
-                        />
-                        <YAxis 
-                          domain={[0, 1.0]} 
-                          ticks={[0, 0.2, 0.4, 0.6, 0.8, 1.0]} 
-                          tickFormatter={(val) => val.toFixed(1)} 
-                          stroke="#888888" 
-                          fontSize={11} 
-                          fontWeight={500}
-                          tickLine={false} 
-                          axisLine={false} 
-                          dx={-10}
-                        />
-                        <Tooltip 
-                          formatter={(value: any) => [value.toFixed(2), "Ratio"]}
-                          contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
-                        />
-                        <Bar 
-                          dataKey="value" 
-                          fill="#f87171" 
-                          radius={[4, 4, 0, 0]} 
-                          barSize={50} 
-                          name="Not Billable Ratio"
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+            <ChartCard title={`Expenses by Month — ${year}`} empty={yearTotal === 0}>
+              <BarChart data={monthly}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" fontSize={11} />
+                <YAxis fontSize={11} tickFormatter={compact} />
+                <Tooltip formatter={(v: any) => [money(v), "Expenses"]} />
+                <Bar dataKey="amount" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartCard>
 
-              {/* Right Chart: Billable expenses by categories */}
-              <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-xl overflow-hidden">
-                <CardHeader className="bg-white border-b border-border/20 p-5">
-                  <CardTitle className="text-sm font-bold text-gray-800 tracking-tight font-sans">
-                    Billable expenses by categories
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="h-[280px]">
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={[
-                        { name: "Bathroom Accessories", value: 0.01 },
-                        { name: "Salary Calculation", value: 0.08 }
-                      ]}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#888888" 
-                          fontSize={11} 
-                          fontWeight={500}
-                          tickLine={false} 
-                          axisLine={false} 
-                          dy={10}
-                        />
-                        <YAxis 
-                          domain={[0, 1.0]} 
-                          ticks={[0, 0.2, 0.4, 0.6, 0.8, 1.0]} 
-                          tickFormatter={(val) => val.toFixed(1)} 
-                          stroke="#888888" 
-                          fontSize={11} 
-                          fontWeight={500}
-                          tickLine={false} 
-                          axisLine={false} 
-                          dx={-10}
-                        />
-                        <Tooltip 
-                          formatter={(value: any) => [value.toFixed(2), "Ratio"]}
-                          contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}
-                        />
-                        <Bar 
-                          dataKey="value" 
-                          fill="#4ade80" 
-                          radius={[4, 4, 0, 0]} 
-                          barSize={50} 
-                          name="Billable Ratio"
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[["Not billable expenses by category", charts.nonBillableByCategory, "#f87171"], ["Billable expenses by category", charts.billableByCategory, "#10b981"]].map(([title, list, color]: any) => (
+                <ChartCard key={title} title={title} empty={!list?.length}>
+                  <BarChart data={list}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" fontSize={10} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis fontSize={11} tickFormatter={compact} />
+                    <Tooltip formatter={(v: any) => [money(v), "Amount"]} />
+                    <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} maxBarSize={60} />
+                  </BarChart>
+                </ChartCard>
+              ))}
             </div>
 
-            {/* 3. Detailed individual report (Slide down toggle) */}
             {showDetails && (
-              <Card className="overflow-hidden print:hidden animate-slide-in">
-                <CardHeader className="bg-accent/5 border-b border-border/40 p-5">
-                  <CardTitle className="text-sm font-bold flex items-center justify-between">
-                    <span>Individual Expense Transactions List</span>
-                    <span className="text-muted-foreground text-xs font-semibold">
-                      Total records: {rawExpenses.length}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
+              <Card className="rounded-2xl overflow-hidden">
+                <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Expense Details ({expenses.length})</CardTitle></CardHeader>
+                <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Ref No.</TableHead>
-                        <TableHead>Billable</TableHead>
-                        <TableHead>Tax</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Note</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>{details.headers.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
                     <TableBody>
-                      {rawExpenses.length > 0 ? (
-                        rawExpenses.map((exp: any) => (
-                          <TableRow key={exp._id}>
-                            <TableCell className="text-muted-foreground">
-                              {format(new Date(exp.date), "yyyy-MM-dd")}
-                            </TableCell>
-                            <TableCell>{exp.category}</TableCell>
-                            <TableCell className="text-muted-foreground">{exp.reference_no}</TableCell>
-                            <TableCell>
-                              {exp.billable ? (
-                                <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full font-extrabold text-[10px] uppercase px-2.5 py-0.5 shadow-none">Yes</Badge>
-                              ) : (
-                                <Badge className="bg-gray-500/10 text-gray-600 border border-gray-500/20 rounded-full font-extrabold text-[10px] uppercase px-2.5 py-0.5 shadow-none">No</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {activeCurrencySymbol}{exp.tax.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {activeCurrencySymbol}{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground max-w-[200px] truncate">{exp.note || "-"}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableEmpty colSpan={7}>No individual transactions found matching filters.</TableEmpty>
-                      )}
+                      {details.rows.length === 0 ? <TableEmpty colSpan={details.headers.length}>No expenses.</TableEmpty> :
+                        details.rows.map((r, i) => <TableRow key={i}>{r.map((c, j) => <TableCell key={j} className={j === 8 ? "text-right font-semibold" : ""}>{c}</TableCell>)}</TableRow>)}
                     </TableBody>
                   </Table>
-                </CardContent>
+                </div>
               </Card>
             )}
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// Expenses vs Income
+// ════════════════════════════════════════════════════════════════════════════
+
+export const ReportExpensesVsIncome = () => {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const money = useMoney();
+  const companyName = useCompanyName();
+  const { data = {} as any, isLoading, isError } = useQuery({
+    queryKey: ["expensesVsIncome", year],
+    queryFn: () => utilityService.getExpensesVsIncome(year),
+  });
+  const months: any[] = data.months || [];
+  const totals = data.totals || {};
+  const years: number[] = data.years || [new Date().getFullYear()];
+  const hasData = months.some((m) => m.income || m.expenses);
+
+  const table = {
+    headers: ["Month", "Invoiced", "Income (Received)", "Expenses", "Profit / Loss"],
+    rows: months.map((m) => [`${m.month} ${year}`, money(m.invoiced), money(m.income), money(m.expenses), money(m.profit)]),
+    footer: ["Total", money(totals.invoiced), money(totals.income), money(totals.expenses), money(totals.profit)],
+  };
+
+  const onExport = (kind: ExportKind) =>
+    runExport(kind, {
+      title: "Expenses vs Income",
+      subtitle: `Year: ${year}`,
+      companyName,
+      kpis: [
+        { label: "Income (Received)", value: money(totals.income) },
+        { label: "Expenses", value: money(totals.expenses) },
+        { label: "Profit / Loss", value: money(totals.profit) },
+        { label: "Profit Margin", value: `${num(totals.margin)}%` },
+        { label: "Invoiced", value: money(totals.invoiced) },
+      ],
+      sections: [{ title: `Month by Month — ${year}`, ...table }],
+      fileName: `expenses_vs_income_${year}`,
+    });
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title="Expenses vs Income" description="Money received (payments) compared with money spent (expenses), month by month">
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Year</FilterLabel>
+            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
+              <SelectTrigger className="w-[100px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map((y) => <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <ExportMenu onExport={onExport} disabled={isLoading} />
+        </ReportHeader>
+
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-start gap-2 text-xs font-medium">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          Income = payments actually received in that month. Amounts are added as they are stored, so use this report when payments and expenses are in one currency.
+        </div>
+        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the report.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label="Income (Received)" value={money(totals.income)} tone="text-emerald-600" />
+          <Kpi label="Expenses" value={money(totals.expenses)} tone="text-red-600" />
+          <Kpi label="Profit / Loss" value={money(totals.profit)} tone={num(totals.profit) >= 0 ? "text-emerald-700" : "text-red-700"} />
+          <Kpi label="Profit Margin" value={`${num(totals.margin)}%`} hint={`Invoiced: ${money(totals.invoiced)}`} />
+        </div>
+
+        {isLoading ? <Loading /> : (
+          <>
+            <ChartCard title={`Income vs Expenses — ${year}`} empty={!hasData} height={380}>
+              <ComposedChart data={months}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" fontSize={11} />
+                <YAxis fontSize={11} tickFormatter={compact} />
+                <Tooltip formatter={(v: any, n: any) => [money(v), n]} />
+                <Legend />
+                <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Line type="monotone" dataKey="profit" name="Profit / Loss" stroke="#1e3a5f" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
+            </ChartCard>
+            <Card className="rounded-2xl overflow-hidden">
+              <Table>
+                <TableHeader><TableRow>{table.headers.map((h, i) => <TableHead key={h} className={i ? "text-right" : ""}>{h}</TableHead>)}</TableRow></TableHeader>
+                <TableBody>
+                  {months.map((m, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-medium">{m.month} {year}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{money(m.invoiced)}</TableCell>
+                      <TableCell className="text-right text-emerald-700">{money(m.income)}</TableCell>
+                      <TableCell className="text-right text-red-600">{money(m.expenses)}</TableCell>
+                      <TableCell className={`text-right font-bold ${m.profit < 0 ? "text-red-700" : ""}`}>{money(m.profit)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-primary/5 font-bold">{table.footer.map((c, j) => <TableCell key={j} className={j ? "text-right" : ""}>{c}</TableCell>)}</TableRow>
+                </TableBody>
+              </Table>
+            </Card>
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// Leads Conversions Report
+// ════════════════════════════════════════════════════════════════════════════
+
+const CONVERTED_STATUS = /^(customer|converted|won)$/i;
+
+export const ReportLeads = () => {
+  const [mode, setMode] = useState<"general" | "staff">("general");
+  const [period, setPeriod] = useState("this_year");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [staffId, setStaffId] = useState("all");
+  const [sourceId, setSourceId] = useState("all");
+  const companyName = useCompanyName();
+
+  const leadsQ = useQuery({ queryKey: ["leads", "report"], queryFn: () => leadService.getAll() });
+  const { data: sourcesRaw } = useQuery({ queryKey: ["lead-sources", "report"], queryFn: leadService.getSources });
+  const { data: statusesRaw } = useQuery({ queryKey: ["lead-statuses", "report"], queryFn: leadService.getStatuses });
+  const { data: staffRaw } = useQuery({ queryKey: ["staff", "assignable"], queryFn: staffService.getAssignable });
+  const leads = toList(leadsQ.data);
+  const sources = toList(sourcesRaw);
+  const statuses = toList(statusesRaw);
+  const staff = toList(staffRaw);
+
+  const statusName = (l: any) => (typeof l.status === "object" ? l.status?.name : statuses.find((s: any) => s._id === l.status)?.name) || "No status";
+  const sourceName = (l: any) => (typeof l.source === "object" ? l.source?.name : sources.find((s: any) => s._id === l.source)?.name) || "No source";
+  const isConverted = (l: any) => !!l.client_id || CONVERTED_STATUS.test(statusName(l));
+  const staffName = (id: string) => personName(staff.find((s: any) => String(s._id) === id)) || "Unknown";
+  const leadDate = (l: any) => l.dateadded || l.createdAt;
+
+  const range = periodRange(period, from, to);
+  const filtered = leads.filter((l) =>
+    inRange(leadDate(l), range) &&
+    (staffId === "all" || idOf(l.assigned) === staffId || idOf(l.addedfrom) === staffId) &&
+    (sourceId === "all" || idOf(l.source) === sourceId)
+  );
+  const converted = filtered.filter(isConverted);
+  const lost = filtered.filter((l) => l.lost);
+  const junk = filtered.filter((l) => l.junk);
+  const rate = (a: number, b: number) => (b ? Math.round((a / b) * 1000) / 10 : 0);
+
+  const trend = useMemo(() => {
+    const b = timeBuckets(filtered.map((l) => toLocal(leadDate(l))!).filter(Boolean), range);
+    const map = new Map(b.keys.map((k) => [k, { key: k, label: b.labelOf(k), created: 0, converted: 0, rate: 0 }]));
+    filtered.forEach((l) => {
+      const d = toLocal(leadDate(l));
+      if (!d) return;
+      const row = map.get(b.keyOf(d));
+      if (!row) return;
+      row.created++;
+      if (isConverted(l)) row.converted++;
+    });
+    return [...map.values()].map((r) => ({ ...r, rate: rate(r.converted, r.created) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered.length, period, from, to, staffId, sourceId, leadsQ.dataUpdatedAt]);
+
+  const group = (keyFn: (l: any) => string) => {
+    const m = new Map<string, { name: string; created: number; converted: number; lost: number }>();
+    filtered.forEach((l) => {
+      const k = keyFn(l);
+      const r = m.get(k) || { name: k, created: 0, converted: 0, lost: 0 };
+      r.created++;
+      if (isConverted(l)) r.converted++;
+      if (l.lost) r.lost++;
+      m.set(k, r);
+    });
+    return [...m.values()].map((r) => ({ ...r, rate: rate(r.converted, r.created) })).sort((a, b) => b.created - a.created);
+  };
+  const bySource = group(sourceName);
+  const byStatus = group(statusName).map((r) => ({ name: r.name, value: r.created }));
+  const byStaff = (() => {
+    const m = new Map<string, any>();
+    filtered.forEach((l) => {
+      const id = idOf(l.assigned) || "";
+      const name = id ? staffName(id) : "Not assigned";
+      const r = m.get(name) || { name, created: 0, converted: 0, lost: 0, junk: 0 };
+      r.created++;
+      if (isConverted(l)) r.converted++;
+      if (l.lost) r.lost++;
+      if (l.junk) r.junk++;
+      m.set(name, r);
+    });
+    return [...m.values()].map((r) => ({ ...r, rate: rate(r.converted, r.created) })).sort((a, b) => b.converted - a.converted || b.created - a.created);
+  })();
+
+  const kpis = [
+    { label: "Leads", value: String(filtered.length) },
+    { label: "Converted", value: String(converted.length) },
+    { label: "Conversion Rate", value: `${rate(converted.length, filtered.length)}%` },
+    { label: "Lost", value: String(lost.length) },
+    { label: "Junk", value: String(junk.length) },
+  ];
+
+  const onExport = (kind: ExportKind) => {
+    const filters = [`Period: ${periodLabel(period, from, to)}`, staffId !== "all" ? `Staff: ${staffName(staffId)}` : "", sourceId !== "all" ? `Source: ${sources.find((s: any) => s._id === sourceId)?.name}` : ""].filter(Boolean).join(" · ");
+    const sections = mode === "staff"
+      ? [{ title: "Conversions by Staff (assigned)", headers: ["Staff", "Leads", "Converted", "Lost", "Junk", "Conversion %"], rows: byStaff.map((r) => [r.name, r.created, r.converted, r.lost, r.junk, `${r.rate}%`]), footer: ["Total", filtered.length, converted.length, lost.length, junk.length, `${rate(converted.length, filtered.length)}%`] }]
+      : [
+          { title: trend.length && trend[0].key.length > 7 ? "Leads by Day" : "Leads by Month", headers: ["Period", "Leads Created", "Converted", "Conversion %"], rows: trend.filter((r) => r.created).map((r) => [r.label, r.created, r.converted, `${r.rate}%`]), footer: ["Total", filtered.length, converted.length, `${rate(converted.length, filtered.length)}%`] },
+          { title: "Leads by Source", headers: ["Source", "Leads", "Converted", "Lost", "Conversion %"], rows: bySource.map((r) => [r.name, r.created, r.converted, r.lost, `${r.rate}%`]) },
+          { title: "Leads by Status", headers: ["Status", "Leads"], rows: byStatus.map((r) => [r.name, r.value]) },
+        ];
+    runExport(kind, { title: `Leads Conversions Report${mode === "staff" ? " — Staff" : ""}`, subtitle: filters, companyName, kpis, sections, fileName: `leads_report_${mode}` });
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title={`Leads Conversions Report${mode === "staff" ? " (Staff)" : ""}`} description="How many leads came in, from where, and how many became customers">
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Staff</FilterLabel>
+            <Select value={staffId} onValueChange={setStaffId}>
+              <SelectTrigger className="w-[160px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Staff</SelectItem>
+                {staff.map((s: any) => <SelectItem key={s._id} value={String(s._id)} className="text-xs">{personName(s)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Source</FilterLabel>
+            <Select value={sourceId} onValueChange={setSourceId}>
+              <SelectTrigger className="w-[150px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Sources</SelectItem>
+                {sources.map((s: any) => <SelectItem key={s._id} value={String(s._id)} className="text-xs">{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" className="h-9 rounded-lg text-xs font-bold gap-2" onClick={() => setMode(mode === "general" ? "staff" : "general")}>
+            {mode === "general" ? <><User className="h-3.5 w-3.5" />Staff Report</> : <><TrendingUp className="h-3.5 w-3.5" />General Report</>}
+          </Button>
+          <ExportMenu onExport={onExport} disabled={leadsQ.isLoading} />
+        </ReportHeader>
+
+        {leadsQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load leads.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {kpis.map((k) => <Kpi key={k.label} label={k.label} value={leadsQ.isLoading ? "…" : k.value} />)}
+        </div>
+
+        {leadsQ.isLoading ? <Loading /> : mode === "general" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="lg:col-span-2">
+              <ChartCard title="Leads Created vs Converted" empty={!filtered.length} height={320}>
+                <ComposedChart data={trend}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} minTickGap={8} />
+                  <YAxis yAxisId="l" fontSize={11} allowDecimals={false} />
+                  <YAxis yAxisId="r" orientation="right" fontSize={11} unit="%" domain={[0, 100]} />
+                  <Tooltip formatter={(v: any, n: any) => [n === "Conversion %" ? `${v}%` : v, n]} />
+                  <Legend />
+                  <Bar yAxisId="l" dataKey="created" name="Leads Created" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="l" dataKey="converted" name="Converted" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
+                  <Line yAxisId="r" type="monotone" dataKey="rate" name="Conversion %" stroke={COLORS[2]} strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ChartCard>
+            </div>
+            <ChartCard title="Leads by Source — Created vs Converted" empty={!bySource.length}>
+              <BarChart data={bySource.slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={10} interval={0} angle={-20} textAnchor="end" height={60} />
+                <YAxis fontSize={11} allowDecimals={false} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="created" name="Leads" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="converted" name="Converted" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartCard>
+            <ChartCard title="Leads by Status" empty={!byStatus.length}><SimplePie data={byStatus} /></ChartCard>
+            <Card className="rounded-2xl overflow-hidden lg:col-span-2">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Conversion by Source</CardTitle></CardHeader>
+              <Table>
+                <TableHeader><TableRow>{["Source", "Leads", "Converted", "Lost", "Conversion %"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                <TableBody>
+                  {bySource.length === 0 ? <TableEmpty colSpan={5}>No leads for the selected filters.</TableEmpty> :
+                    bySource.map((r) => <TableRow key={r.name}><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.created}</TableCell><TableCell className="text-emerald-700 font-bold">{r.converted}</TableCell><TableCell>{r.lost}</TableCell><TableCell>{r.rate}%</TableCell></TableRow>)}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <ChartCard title="Leads per Staff (assigned) — Created, Converted, Lost" empty={!byStaff.length} height={340}>
+              <BarChart data={byStaff}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={10} interval={0} angle={-15} textAnchor="end" height={55} />
+                <YAxis fontSize={11} allowDecimals={false} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="created" name="Leads" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="converted" name="Converted" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="lost" name="Lost" fill={COLORS[3]} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartCard>
+            <Card className="rounded-2xl overflow-hidden">
+              <Table>
+                <TableHeader><TableRow>{["Staff", "Leads", "Converted", "Lost", "Junk", "Conversion %"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                <TableBody>
+                  {byStaff.length === 0 ? <TableEmpty colSpan={6}>No leads for the selected filters.</TableEmpty> :
+                    byStaff.map((r) => <TableRow key={r.name}><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.created}</TableCell><TableCell className="text-emerald-700 font-bold">{r.converted}</TableCell><TableCell>{r.lost}</TableCell><TableCell>{r.junk}</TableCell><TableCell>{r.rate}%</TableCell></TableRow>)}
+                </TableBody>
+              </Table>
+            </Card>
           </div>
         )}
       </div>
@@ -1410,2038 +906,560 @@ export const ReportExpenses = () => {
   );
 };
 
-export const ReportExpensesVsIncome = () => {
-  const performanceData = [
-    { month: "January", income: 12400.00, expenses: 1200.00 },
-    { month: "February", income: 15800.00, expenses: 1500.00 },
-    { month: "March", income: 18200.00, expenses: 1800.00 },
-    { month: "April", income: 38500.00, expenses: 2100.00 }, // Very tall green bar reaching nearly $40,000
-    { month: "May", income: 21500.00, expenses: 1400.00 },
-    { month: "June", income: 24100.00, expenses: 1600.00 },
-    { month: "July", income: 19500.00, expenses: 1500.00 },
-    { month: "August", income: 22000.00, expenses: 1700.00 },
-    { month: "September", income: 26000.00, expenses: 1900.00 },
-    { month: "October", income: 23500.00, expenses: 1600.00 },
-    { month: "November", income: 25000.00, expenses: 1800.00 },
-    { month: "December", income: 29500.00, expenses: 2500.00 }
-  ];
+// ════════════════════════════════════════════════════════════════════════════
+// Timesheets Overview
+// ════════════════════════════════════════════════════════════════════════════
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (type === "csv" || type === "xlsx") {
-      const csvRows = ["Month,Income,Expenses"];
-      performanceData.forEach(item => {
-        csvRows.push(`"${item.month}",${item.income},${item.expenses}`);
-      });
-      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `expenses_vs_income_report_${new Date().getFullYear()}.${type}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
+const TIMESHEET_PERIODS = [
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "this_week", label: "This Week" },
+  { value: "last_week", label: "Last Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "last_month", label: "Last Month" },
+  { value: "this_year", label: "This Year" },
+  { value: "all_time", label: "All Time" },
+  { value: "custom", label: "Custom Period" },
+];
+const hm = (h: number) => {
+  const mins = Math.round(num(h) * 60);
+  return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
+};
+
+export const ReportTimesheets = () => {
+  const [mode, setMode] = useState<"overview" | "mine">("overview");
+  const [period, setPeriod] = useState("this_week");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [staffKey, setStaffKey] = useState("all");
+  const [projectKey, setProjectKey] = useState("all");
+  const [search, setSearch] = useState("");
+  const [billable, setBillable] = useState("all");
+  const { user } = usePermissions();
+  const companyName = useCompanyName();
+
+  const entriesQ = useQuery({ queryKey: ["time-entries-source"], queryFn: () => timeEntryService.getTimeEntries().then(toList) });
+  const { data: staffRaw } = useQuery({ queryKey: ["staff", "assignable"], queryFn: staffService.getAssignable });
+  const { data: tasksRaw } = useQuery({ queryKey: ["tasks-report"], queryFn: () => taskService.getAll() });
+  const { data: projectsRaw } = useQuery({ queryKey: ["projects-report"], queryFn: () => projectService.getAll() });
+  const staff = toList(staffRaw);
+  const taskById = useMemo(() => new Map(toList(tasksRaw).map((t: any) => [String(t._id), t])), [tasksRaw]);
+  const projectById = useMemo(() => new Map(toList(projectsRaw).map((p: any) => [String(p._id), p])), [projectsRaw]);
+  const staffById = useMemo(() => new Map(staff.map((s: any) => [String(s._id), s])), [staff]);
+
+  // Each entry with real names: member may be a staff id or a typed name;
+  // task / project may be an id (task timer) or typed text (Time Tracking page).
+  const entries = useMemo(() => toList(entriesQ.data).map((e: any) => {
+    const task = isObjectIdLike(e.task) ? taskById.get(e.task) : null;
+    const projectId = isObjectIdLike(e.project) ? e.project : task?.rel_type === "project" ? idOf(task.rel_id) : "";
+    const project = projectId ? projectById.get(projectId) : null;
+    const memberStaff = isObjectIdLike(e.member) ? staffById.get(e.member) : null;
+    const creator = staffById.get(idOf(e.created_by));
+    const staffName = personName(memberStaff) || (e.member && !isObjectIdLike(e.member) ? e.member : "") || personName(creator) || "Unknown";
+    return {
+      id: e._id,
+      staffKey: memberStaff ? String(memberStaff._id) : e.member && !isObjectIdLike(e.member) ? `name:${e.member}` : creator ? String(creator._id) : "unknown",
+      staff: staffName,
+      mine: idOf(e.created_by) === String(user?._id) || idOf(e.member) === String(user?._id),
+      task: task?.name || (isObjectIdLike(e.task) ? "Deleted task" : e.task || "-"),
+      projectKey: project ? String(project._id) : e.project && !isObjectIdLike(e.project) ? `name:${e.project}` : "none",
+      project: project?.name || (e.project && !isObjectIdLike(e.project) ? e.project : "-"),
+      date: e.date,
+      hours: num(e.hours),
+      billable: !!e.billable,
+    };
+  }), [entriesQ.data, taskById, projectById, staffById, user?._id]);
+
+  const range = periodRange(period, from, to);
+  const base = mode === "mine" ? entries.filter((e) => e.mine) : entries;
+  const filtered = base
+    .filter((e) => inRange(e.date, range))
+    .filter((e) => mode === "mine" || staffKey === "all" || e.staffKey === staffKey)
+    .filter((e) => projectKey === "all" || e.projectKey === projectKey)
+    .filter((e) => billable === "all" || (billable === "yes" ? e.billable : !e.billable))
+    .filter((e) => !search.trim() || `${e.task} ${e.project}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => (toLocal(b.date)?.getTime() || 0) - (toLocal(a.date)?.getTime() || 0));
+
+  const staffOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    entries.forEach((e) => m.set(e.staffKey, e.staff));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [entries]);
+  const projectOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    entries.forEach((e) => e.projectKey !== "none" && m.set(e.projectKey, e.project));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [entries]);
+
+  const total = filtered.reduce((a, e) => a + e.hours, 0);
+  const billableHrs = filtered.filter((e) => e.billable).reduce((a, e) => a + e.hours, 0);
+
+  const b = timeBuckets(filtered.map((e) => toLocal(e.date)!).filter(Boolean), range);
+  const byTime = (() => {
+    const map = new Map(b.keys.map((k) => [k, { label: b.labelOf(k), billable: 0, nonBillable: 0 }]));
+    filtered.forEach((e) => {
+      const d = toLocal(e.date);
+      const r = d && map.get(b.keyOf(d));
+      if (!r) return;
+      if (e.billable) r.billable += e.hours; else r.nonBillable += e.hours;
+    });
+    return [...map.values()].map((r) => ({ ...r, billable: Math.round(r.billable * 100) / 100, nonBillable: Math.round(r.nonBillable * 100) / 100 }));
+  })();
+  const sumBy = (keyFn: (e: any) => string) => {
+    const m = new Map<string, { name: string; hours: number; billable: number; entries: number }>();
+    filtered.forEach((e) => {
+      const k = keyFn(e);
+      const r = m.get(k) || { name: k, hours: 0, billable: 0, entries: 0 };
+      r.hours += e.hours;
+      if (e.billable) r.billable += e.hours;
+      r.entries++;
+      m.set(k, r);
+    });
+    return [...m.values()].map((r) => ({ ...r, hours: Math.round(r.hours * 100) / 100, billable: Math.round(r.billable * 100) / 100 })).sort((a, c) => c.hours - a.hours);
+  };
+  const byStaff = sumBy((e) => e.staff);
+  const byProject = sumBy((e) => (e.project === "-" ? "No project" : e.project));
+
+  const onExport = (kind: ExportKind) => {
+    const filterText = [
+      `Period: ${periodLabel(period, from, to)}`,
+      mode === "mine" ? `Staff: ${personName(user) || "Me"}` : staffKey !== "all" ? `Staff: ${staffOptions.find(([k]) => k === staffKey)?.[1]}` : "",
+      projectKey !== "all" ? `Project: ${projectOptions.find(([k]) => k === projectKey)?.[1]}` : "",
+      billable !== "all" ? (billable === "yes" ? "Billable only" : "Not billable only") : "",
+      search.trim() ? `Search: ${search.trim()}` : "",
+    ].filter(Boolean).join(" · ");
+    runExport(kind, {
+      title: mode === "mine" ? "My Timesheets" : "Timesheets Overview",
+      subtitle: filterText,
+      companyName,
+      kpis: [
+        { label: "Total Time (h:m)", value: hm(total) },
+        { label: "Billable", value: hm(billableHrs) },
+        { label: "Not Billable", value: hm(total - billableHrs) },
+        { label: "Entries", value: String(filtered.length) },
+      ],
+      sections: [
+        ...(mode === "overview" ? [{ title: "Time by Staff", headers: ["Staff", "Entries", "Billable (h:m)", "Total (h:m)"], rows: byStaff.map((r) => [r.name, r.entries, hm(r.billable), hm(r.hours)]) }] : []),
+        { title: "Time by Project", headers: ["Project", "Entries", "Billable (h:m)", "Total (h:m)"], rows: byProject.map((r) => [r.name, r.entries, hm(r.billable), hm(r.hours)]) },
+        { title: "Time Entries", headers: ["Date", "Staff", "Task", "Project", "Billable", "Time (h:m)"], rows: filtered.map((e) => [fmtDate(e.date), e.staff, e.task, e.project, e.billable ? "Yes" : "No", hm(e.hours)]), footer: ["Total", "", "", "", "", hm(total)] },
+      ],
+      fileName: `timesheets_${mode}`,
+    });
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in pb-12">
-        
-        {/* Header segment with clean professional text */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Expenses vs Income</h1>
-            <p className="text-muted-foreground text-sm font-medium">Monthly operational overhead vs incoming organization revenue streams</p>
-          </div>
-          <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Download className="h-4 w-4" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white">
-                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                  <span>Excel</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                  <span>CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                  <FileType className="h-4 w-4 text-red-600" />
-                  <span>PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                  <Printer className="h-4 w-4 text-gray-600" />
-                  <span>Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Warning Notice Block as requested */}
-        <div className="bg-yellow-50/60 border border-yellow-200/80 text-yellow-800 p-4 rounded-xl flex items-start gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
-          <AlertCircle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
-          <div className="text-xs font-semibold leading-relaxed font-sans">
-            <span className="font-extrabold uppercase tracking-wider text-[9px] bg-yellow-100/90 text-yellow-800 px-1.5 py-0.5 rounded mr-2 border border-yellow-200/50">Base Currency</span>
-            Amount is displayed in your base currency - Only use this report if you are using 1 currency for payments and expenses.
-          </div>
-        </div>
-
-        {/* Canvas background in light gray with subtle shadow feel */}
-        <div className="bg-gray-50/80 p-6 rounded-2xl border border-border/40 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-          
-          {/* White canvas card container with subtle shadow feel */}
-          <Card className="bg-white border border-border/30 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
-            <CardHeader className="bg-white border-b border-border/10 p-6">
-              <CardTitle className="text-sm font-bold text-gray-800 tracking-tight font-sans">
-                Monthly Financial Performance Comparison
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[420px] w-full">
-                <ResponsiveContainer width="100%" height={420}>
-                  <BarChart 
-                    data={performanceData}
-                    barGap={6}
-                    margin={{ top: 20, right: 10, left: 20, bottom: 10 }}
-                  >
-                    {/* Subtle grid lines across chart area */}
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                    
-                    <XAxis 
-                      dataKey="month" 
-                      stroke="#9ca3af" 
-                      fontSize={11} 
-                      fontWeight={500}
-                      tickLine={false} 
-                      axisLine={{ stroke: "#e5e7eb", strokeWidth: 1 }} 
-                      dy={10}
-                    />
-                    
-                    <YAxis 
-                      domain={[0, 40000]} 
-                      ticks={[0, 10000, 20000, 30000, 40000]} 
-                      tickFormatter={(val) => "₹" + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-                      stroke="#9ca3af" 
-                      fontSize={11} 
-                      fontWeight={500}
-                      tickLine={false} 
-                      axisLine={{ stroke: "#e5e7eb", strokeWidth: 1 }} 
-                      dx={-10}
-                    />
-                    
-                    {/* Modern Legend at the top center with colored labels */}
-                    <Legend 
-                      verticalAlign="top" 
-                      align="center" 
-                      iconType="circle" 
-                      iconSize={8}
-                      wrapperStyle={{ 
-                        paddingBottom: 35, 
-                        fontSize: "12px", 
-                        fontWeight: 700,
-                        fontFamily: "sans-serif"
-                      }}
-                      formatter={(value) => (
-                        <span className={value === "Total Income" ? "text-emerald-600 px-1" : "text-rose-500 px-1"}>
-                          {value}
-                        </span>
-                      )}
-                    />
-                    
-                    <Tooltip 
-                      formatter={(value: any, name: any) => [
-                        "₹" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                        name
-                      ]}
-                      contentStyle={{ 
-                        background: "#ffffff", 
-                        border: "1px solid #e5e7eb", 
-                        borderRadius: "12px", 
-                        boxShadow: "0 4px 15px rgba(0,0,0,0.05)" 
-                      }}
-                    />
-                    
-                    {/* Transparent light green fill for income bars */}
-                    <Bar 
-                      dataKey="income" 
-                      name="Total Income"
-                      fill="#10b981" 
-                      fillOpacity={0.25}
-                      stroke="#10b981"
-                      strokeWidth={1.5}
-                      radius={[4, 4, 0, 0]} 
-                      barSize={32}
-                    />
-                    
-                    {/* Thin red expense bars */}
-                    <Bar 
-                      dataKey="expenses" 
-                      name="Expenses"
-                      fill="#ef4444" 
-                      fillOpacity={0.9}
-                      stroke="#ef4444"
-                      strokeWidth={1}
-                      radius={[3, 3, 0, 0]} 
-                      barSize={10}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export const ReportLeads = () => {
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const now0 = new Date();
-
-  const [reportType, setReportType] = useState<"general" | "staff">("general");
-  const [selectedMonth, setSelectedMonth] = useState(monthNames[now0.getMonth()]);
-  const [fromDate, setFromDate] = useState(format(startOfMonth(now0), "yyyy-MM-dd"));
-  const [toDate, setToDate] = useState(format(endOfMonth(now0), "yyyy-MM-dd"));
-
-  const { data: leadsData = [] } = useQuery({
-    queryKey: ["leads", "report"],
-    queryFn: () => leadService.getAll(),
-  });
-
-  const { data: sourcesListData = [] } = useQuery({
-    queryKey: ["lead-sources", "report"],
-    queryFn: leadService.getSources,
-  });
-
-  const { data: staffListData = [] } = useQuery({
-    queryKey: ["staff", "leads-report"],
-    queryFn: staffService.getAll,
-  });
-
-  // A lead counts as "converted" once its status is literally named "Customer" —
-  // mirrors the rule the backend uses in lead_controller.convertToCustomer
-  const getStatusName = (status: any) => (typeof status === "object" ? status?.name : "") || "";
-  const isConvertedLead = (lead: any) => /^customer$/i.test(getStatusName(lead.status));
-  const getLeadDate = (lead: any) => lead.dateadded || lead.createdAt;
-
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (type === "csv" || type === "xlsx") {
-      const csvRows = [];
-      if (reportType === "staff") {
-        csvRows.push("Staff Name,Created Leads,Lost Leads,Converted Leads");
-        staffData.forEach(item => {
-          csvRows.push(`"${item.name}",${item.created},${item.lost},${item.converted}`);
-        });
-      } else {
-        csvRows.push("--- WEEKLY LEADS ---");
-        csvRows.push("Day,Leads");
-        weeklyData.forEach(item => csvRows.push(`"${item.name}",${item.value}`));
-        csvRows.push("");
-        csvRows.push("--- LEAD SOURCES ---");
-        csvRows.push("Source,Value");
-        sourcesData.forEach(item => csvRows.push(`"${item.name}",${item.value}`));
-      }
-      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `leads_report_${reportType}_${new Date().toISOString().split('T')[0]}.${type}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
-  };
-
-  const monthsList = monthNames.map((label, i) => ({ label, value: label, monthIndex: i }));
-
-  // Monthly conversion-rate trend for the selected month — real leads created that day vs. converted that day
-  const getDynamicMonthlyData = () => {
-    const monthIndex = monthsList.findIndex((m) => m.label === selectedMonth);
-    const idx = monthIndex === -1 ? now0.getMonth() : monthIndex;
-    const year = now0.getFullYear();
-    const daysInMonth = getDaysInMonth(new Date(year, idx, 1));
-    const days = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dayDate = new Date(year, idx, d);
-      const createdThatDay = (leadsData as any[]).filter((l) => {
-        const ld = getLeadDate(l);
-        return ld && isSameDay(new Date(ld), dayDate);
-      });
-      const convertedThatDay = createdThatDay.filter(isConvertedLead).length;
-      const rate = createdThatDay.length > 0 ? convertedThatDay / createdThatDay.length : 0;
-      days.push({ date: format(dayDate, "yyyy-MM-dd"), value: rate });
-    }
-    return days;
-  };
-
-  // Real per-weekday lead-creation counts for the current week
-  const weekStart = startOfWeek(now0, { weekStartsOn: 1 });
-  const weekdayColors = ["#06b6d4", "#3b82f6", "#d946ef", "#9ca3af", "#a855f7", "#f43f5e", "#2563eb"];
-  const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name, idx) => {
-    const dayDate = addDays(weekStart, idx);
-    const value = (leadsData as any[]).filter((l) => {
-      const ld = getLeadDate(l);
-      return ld && isSameDay(new Date(ld), dayDate);
-    }).length;
-    return { name, value };
-  });
-
-  // Real converted-lead counts per lead source
-  const sourcesData = (sourcesListData as any[]).map((s) => ({
-    name: s.name,
-    value: (leadsData as any[]).filter((l) => l.source?._id === s._id && isConvertedLead(l)).length,
-  }));
-
-  // Grouped Staff Comparison Bar Chart Data — real created/lost/converted counts per staff, scoped to the selected date range
-  const rangeStart = fromDate ? new Date(fromDate) : null;
-  const rangeEnd = toDate ? new Date(`${toDate}T23:59:59`) : null;
-  const leadsInRange = (leadsData as any[]).filter((l) => {
-    const ld = getLeadDate(l);
-    if (!ld) return false;
-    const t = new Date(ld).getTime();
-    return (!rangeStart || t >= rangeStart.getTime()) && (!rangeEnd || t <= rangeEnd.getTime());
-  });
-
-  const staffData = (staffListData as any[]).map((st) => {
-    const staffLeads = leadsInRange.filter((l) => {
-      const assignedId = typeof l.assigned === "object" ? l.assigned?._id : l.assigned;
-      const createdById = typeof l.created_by === "object" ? l.created_by?._id : l.created_by;
-      return assignedId === st._id || createdById === st._id;
-    });
-    return {
-      name: `${st.firstname} ${st.lastname}`,
-      created: staffLeads.length,
-      lost: staffLeads.filter((l) => l.lost).length,
-      converted: staffLeads.filter(isConvertedLead).length,
-    };
-  });
-
-  const monthlyChartData = getDynamicMonthlyData();
-
-  if (reportType === "staff") {
-    return (
-      <DashboardLayout>
-        <div className="space-y-6 animate-fade-in pb-12 print:p-0">
-          
-          {/* Header segment with title and back switch button */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leads Conversions Report (Staff Report)</h1>
-              <p className="text-muted-foreground text-sm font-medium">Compare lead creation, loss, and conversion performance metrics per staff member</p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button 
-                onClick={() => setReportType("general")}
-                variant="outline" 
-                size="sm" 
-                className="h-9 rounded-lg border-border/50 text-xs font-bold gap-2 shadow-none hover:bg-accent/10"
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                Switch to General Report
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                    <Download className="h-4 w-4" />
-                    Export
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 bg-white">
-                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                    <span>Excel</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                    <FileJson className="h-4 w-4 text-blue-600" />
-                    <span>CSV</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                    <FileType className="h-4 w-4 text-red-600" />
-                    <span>PDF</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                    <Printer className="h-4 w-4 text-gray-600" />
-                    <span>Print</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* Date range filters and Generate trigger button */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] rounded-xl p-5 print:hidden">
-            <div className="flex flex-wrap items-center gap-6 text-xs font-bold font-sans">
-              <div className="flex items-center gap-2.5">
-                <span className="text-gray-500 font-bold shrink-0">From date</span>
-                <Input 
-                  type="date" 
-                  value={fromDate} 
-                  onChange={(e) => setFromDate(e.target.value)} 
-                  className="w-[170px] h-9 rounded-lg border-border/50 shadow-none text-xs bg-background" 
-                />
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="text-gray-500 font-bold shrink-0">To date</span>
-                <Input 
-                  type="date" 
-                  value={toDate} 
-                  onChange={(e) => setToDate(e.target.value)} 
-                  className="w-[170px] h-9 rounded-lg border-border/50 shadow-none text-xs bg-background" 
-                />
-              </div>
-              <Button 
-                className="h-9 rounded-lg font-bold text-xs bg-gray-900 hover:bg-gray-800 text-white shadow-none px-6"
-              >
-                Generate
-              </Button>
-            </div>
-          </Card>
-
-          {/* Gray page background canvas wrapper for dashboard comparison card */}
-          <div className="bg-gray-50/70 p-6 rounded-2xl border border-border/40 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden">
-              <CardContent className="p-6">
-                
-                {/* Horizontal custom legend exactly as shown in the picture */}
-                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[11px] font-bold font-sans pb-8">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-6 bg-[#e0f2fe] border border-[#0284c7] rounded" />
-                    <span className="text-gray-700">Total created leads</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-6 bg-[#fee2e2] border border-[#e11d48] rounded" />
-                    <span className="text-gray-700">Total lost leads</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-6 bg-[#ecfdf5] border border-[#16a34a] rounded" />
-                    <span className="text-gray-700">Total converted leads</span>
-                  </div>
-                </div>
-
-                {/* Grouped Bar Chart replicating the uploaded screenshot style perfectly */}
-                <div className="h-[340px] w-full">
-                  <ResponsiveContainer width="100%" height={340}>
-                    <BarChart 
-                      data={staffData} 
-                      barGap={4} 
-                      barSize={45}
-                      margin={{ left: -25, right: 10, bottom: 5 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                      
-                      <XAxis 
-                        dataKey="name" 
-                        fontSize={10} 
-                        fontWeight={600}
-                        stroke="#9ca3af" 
-                        tickLine={false} 
-                        axisLine={false}
-                        dy={6}
-                      />
-                      
-                      <YAxis
-                        domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
-                        allowDecimals={false}
-                        fontSize={10}
-                        fontWeight={600}
-                        stroke="#9ca3af"
-                        tickLine={false}
-                        axisLine={false}
-                      />
-
-                      <Tooltip
-                        formatter={(value: any, name: any) => [value, name]}
-                        contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
-                      />
-                      
-                      {/* Total created leads - sky blue fill with blue border */}
-                      <Bar 
-                        dataKey="created" 
-                        name="Total Created Leads"
-                        fill="#e0f2fe" 
-                        stroke="#0284c7" 
-                        strokeWidth={1}
-                        radius={[2, 2, 0, 0]}
-                      />
-                      
-                      {/* Total lost leads - red fill with rose border */}
-                      <Bar 
-                        dataKey="lost" 
-                        name="Total Lost Leads"
-                        fill="#fee2e2" 
-                        stroke="#e11d48" 
-                        strokeWidth={1}
-                        radius={[2, 2, 0, 0]}
-                      />
-                      
-                      {/* Total converted leads - green fill with emerald border */}
-                      <Bar 
-                        dataKey="converted" 
-                        name="Total Converted Leads"
-                        fill="#ecfdf5" 
-                        stroke="#16a34a" 
-                        strokeWidth={1}
-                        radius={[2, 2, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  // Otherwise show the default General Conversion Report
-  return (
-    <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-12 print:p-0">
-        
-        {/* Header segment with title and switch to staff report button with custom tooltip */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leads Conversions Report</h1>
-            <p className="text-muted-foreground text-sm font-medium">Track lead sources, conversion rates, and weekly performance trends</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <ShadcnTooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    onClick={() => setReportType("staff")}
-                    variant="outline" 
-                    size="sm" 
-                    className="h-9 rounded-lg border-border/50 text-xs font-bold gap-2 shadow-none hover:bg-accent/10"
-                  >
-                    <User className="h-3.5 w-3.5" />
-                    Switch to Staff Report
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent 
-                  side="bottom" 
-                  align="end" 
-                  className="max-w-[320px] p-3 text-xs leading-relaxed border border-border/30 bg-white text-gray-700 shadow-md font-sans font-medium rounded-xl"
-                >
-                  Only leads that belongs in the default Customer status will be taken as converted leads, if the leads belongs to the default status client and its not converted to customer will be still counted as converted lead
-                </TooltipContent>
-              </ShadcnTooltip>
-            </TooltipProvider>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                  <Download className="h-4 w-4" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white">
-                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                  <span>Excel</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                  <span>CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                  <FileType className="h-4 w-4 text-red-600" />
-                  <span>PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                  <Printer className="h-4 w-4 text-gray-600" />
-                  <span>Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Gray page background canvas wrapper for dashboard cards */}
-        <div className="bg-gray-50/70 p-6 rounded-2xl border border-border/40 space-y-6 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-          
-          {/* Top segment side-by-side equal widgets */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Widget 1: This Week Leads Conversions */}
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden flex flex-col">
-              <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
-                <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                  This Week Leads Conversions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 flex-1 flex flex-col justify-between">
-                
-                {/* Horizontal custom centered weekday legend */}
-                <div className="flex flex-col items-center gap-3.5 w-full pb-6">
-                  {/* Monday to Friday legends */}
-                  <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] font-bold font-sans">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#06b6d4] rounded" />
-                      <span className="text-gray-800">Monday</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#3b82f6] rounded" />
-                      <span className="text-gray-800">Tuesday</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#d946ef] rounded" />
-                      <span className="text-gray-800">Wednesday</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#9ca3af] rounded" />
-                      <span className="text-gray-800">Thursday</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#a855f7] rounded" />
-                      <span className="text-gray-800">Friday</span>
-                    </div>
-                  </div>
-                  {/* Saturday and Sunday legend */}
-                  <div className="flex flex-wrap items-center justify-center gap-x-5 text-[11px] font-bold font-sans">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#f43f5e] rounded" />
-                      <span className="text-gray-800 line-through decoration-gray-400">Saturday</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 bg-[#2563eb] rounded" />
-                      <span className="text-gray-800">Sunday</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Empty chart area beneath legend */}
-                <div className="h-[240px] w-full">
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={weeklyData} margin={{ left: -25, right: 10, bottom: 5 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                      <XAxis 
-                        dataKey="name" 
-                        fontSize={10} 
-                        fontWeight={600}
-                        stroke="#9ca3af" 
-                        tickLine={false} 
-                        axisLine={false}
-                        dy={6}
-                      />
-                      <YAxis
-                        domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax) + 2)]}
-                        allowDecimals={false}
-                        fontSize={10}
-                        fontWeight={600}
-                        stroke="#9ca3af"
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip formatter={(val: any) => [val, "Leads Created"]} />
-                      <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={36}>
-                        {weeklyData.map((_, idx) => (
-                          <Cell key={idx} fill={weekdayColors[idx]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Widget 2: Sources Conversion */}
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden flex flex-col">
-              <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
-                <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                  Sources Conversion
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 flex-1 flex flex-col justify-end">
-                <div className="h-[280px] w-full">
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={sourcesData} margin={{ left: -25, right: 10, bottom: 20 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                      <XAxis 
-                        dataKey="name" 
-                        angle={-45} 
-                        textAnchor="end" 
-                        height={60} 
-                        fontSize={10} 
-                        fontWeight={600} 
-                        stroke="#9ca3af"
-                        tickLine={false}
-                        axisLine={false}
-                        dy={10}
-                      />
-                      <YAxis
-                        domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
-                        allowDecimals={false}
-                        fontSize={10}
-                        fontWeight={600}
-                        stroke="#9ca3af"
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Bottom Widget: Monthly conversion trend (As in uploaded image) */}
-          <Card className="bg-white border border-border/30 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
-            <CardHeader className="bg-white p-5 border-b border-border/10 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                Monthly
-              </CardTitle>
-              
-              {/* Month Dropdown Selector exactly as in design */}
-              <div className="w-[140px] print:hidden">
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-full h-8.5 rounded-lg border-border/50 text-xs font-semibold shadow-none bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border/40">
-                    {monthsList.map((m) => (
-                      <SelectItem key={m.label} value={m.label} className="text-xs font-medium">
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              
-              {/* Large, beautiful dynamic line/bar canvas matching the screenshot exactly */}
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={monthlyChartData} margin={{ left: -25, right: 10, bottom: 25 }}>
-                    <CartesianGrid vertical={true} horizontal={true} strokeDasharray="3 3" className="stroke-gray-100/80" />
-                    
-                    <XAxis 
-                      dataKey="date" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={65} 
-                      fontSize={9} 
-                      fontWeight={600} 
-                      stroke="#9ca3af"
-                      tickLine={false}
-                      axisLine={false}
-                      dy={10}
-                    />
-                    
-                    <YAxis 
-                      domain={[0, 1.0]} 
-                      ticks={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]} 
-                      tickFormatter={(val) => val.toFixed(1)}
-                      fontSize={10} 
-                      fontWeight={600} 
-                      stroke="#9ca3af"
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    
-                    <Tooltip 
-                      formatter={(val: any) => [val.toFixed(2), "Rate"]}
-                      contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
-                    />
-                    
-                    {/* Beautiful flat magenta line near 0 value matching image exactly */}
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#d946ef" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export const ReportTimesheets = () => {
-  const [viewMode, setViewMode] = useState<"overview" | "my-timesheets">("overview");
-  const [period, setPeriod] = useState("Today");
-  const [selectedStaff, setSelectedStaff] = useState("All Staff Members");
-  const [taskSearch, setTaskSearch] = useState("");
-  const [projectSearch, setProjectSearch] = useState("");
-
-  const { user } = usePermissions();
-  const currentStaffName = user ? `${(user as any).firstname || ""} ${(user as any).lastname || ""}`.trim() : "";
-
-  const { data: staffData = [] } = useQuery({
-    queryKey: ["staff", "timesheet-report"],
-    queryFn: staffService.getAll,
-  });
-
-  const { data: timeEntriesData = [] } = useQuery({
-    queryKey: ["time-entries", "report"],
-    queryFn: timeEntryService.getTimeEntries,
-  });
-
-  const resolveStaffName = (entry: any) => {
-    if (entry.member) return entry.member;
-    const createdById = typeof entry.created_by === "object" ? entry.created_by?._id : entry.created_by;
-    const staffMember = (staffData as any[]).find((s) => s._id === createdById);
-    return staffMember ? `${staffMember.firstname} ${staffMember.lastname}` : "Unassigned";
-  };
-
-  // Real timesheet entries, mapped from the TimeEntry API
-  const allTimesheets = (timeEntriesData as any[]).map((e) => ({
-    id: e._id,
-    staff: resolveStaffName(e),
-    task: e.task || "-",
-    project: e.project || "-",
-    date: e.date,
-    hours: Number(e.hours) || 0,
-    billable: !!e.billable,
-  }));
-
-  const baseTimesheets = viewMode === "my-timesheets"
-    ? allTimesheets.filter(t => t.staff === currentStaffName)
-    : allTimesheets;
-
-  // Parses a date-only value (e.g. "2026-07-10", no time component) as LOCAL midnight
-  // instead of UTC midnight — otherwise `new Date("2026-07-10")` anchors to UTC and can
-  // shift a day backward/forward depending on the viewer's timezone, making entries
-  // logged "today" silently fall outside the Today/This Week filters.
-  const toLocalDate = (value: string | Date) => {
-    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return new Date(value + "T00:00:00");
-    }
-    return new Date(value);
-  };
-
-  const getPeriodRange = (p: string): { start: Date; end: Date } => {
-    const now = new Date();
-    if (p === "Yesterday") {
-      const y = subDays(now, 1);
-      return { start: startOfDay(y), end: endOfDay(y) };
-    }
-    if (p === "This Week") {
-      return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
-    }
-    if (p === "Last Week") {
-      const lastWeekNow = subWeeks(now, 1);
-      return { start: startOfWeek(lastWeekNow, { weekStartsOn: 1 }), end: endOfWeek(lastWeekNow, { weekStartsOn: 1 }) };
-    }
-    if (p === "This Month") {
-      return { start: startOfMonth(now), end: endOfMonth(now) };
-    }
-    return { start: startOfDay(now), end: endOfDay(now) }; // Today (default)
-  };
-
-  const filteredTimesheets = useMemo(() => {
-    let result = [...baseTimesheets];
-
-    if (viewMode === "overview" && selectedStaff !== "All Staff Members") {
-      result = result.filter(t => t.staff === selectedStaff);
-    }
-
-    const { start, end } = getPeriodRange(period);
-    result = result.filter(t => t.date && isWithinInterval(toLocalDate(t.date), { start, end }));
-
-    if (taskSearch.trim() !== "") {
-      result = result.filter(t => t.task.toLowerCase().includes(taskSearch.toLowerCase()));
-    }
-
-    if (projectSearch.trim() !== "") {
-      result = result.filter(t => t.project.toLowerCase().includes(projectSearch.toLowerCase()));
-    }
-
-    return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseTimesheets, selectedStaff, period, taskSearch, projectSearch, viewMode]);
-
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filteredTimesheets.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    if (type === "csv" || type === "xlsx") {
-      const headers = ["Staff Member", "Task", "Project", "Date", "Duration (Hours)", "Billable"];
-      const rows = filteredTimesheets.map(t => [
-        t.staff,
-        t.task,
-        t.project,
-        t.date ? format(new Date(t.date), "yyyy-MM-dd") : "",
-        t.hours,
-        t.billable ? "Yes" : "No"
-      ]);
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `timesheets_report_${viewMode}_${new Date().toISOString().split('T')[0]}.${type}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
-  };
-
-  // Filters are applied live via useMemo above — Apply just re-affirms the current selection for UX consistency
-  const handleApplyFilters = () => {};
-
-  // Total duration of the currently filtered records — drives the overview chart bar
-  const totalHours = filteredTimesheets.reduce((acc, curr) => acc + curr.hours, 0);
-
-  const chartData = [
-    { name: period, value: totalHours }
-  ];
-
-  // Real per-weekday hours for the current week, scoped to the logged-in staff member
-  const myTimesheets = allTimesheets.filter(t => t.staff === currentStaffName);
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const weeklyMyLoggedData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => {
-    const dayDate = addDays(weekStart, idx);
-    const hours = myTimesheets
-      .filter(t => t.date && isSameDay(toLocalDate(t.date), dayDate))
-      .reduce((sum, t) => sum + t.hours, 0);
-    return { day, hours };
-  });
-
-  // Metrics for the "My Timesheets" summary cards — all computed from real logged hours
-  const now = new Date();
-  const sumHoursInRange = (start: Date, end: Date) =>
-    myTimesheets.filter(t => t.date && isWithinInterval(toLocalDate(t.date), { start, end })).reduce((sum, t) => sum + t.hours, 0);
-
-  const myTotalHours = myTimesheets.reduce((sum, t) => sum + t.hours, 0);
-  const myThisWeekHours = sumHoursInRange(startOfWeek(now, { weekStartsOn: 1 }), endOfWeek(now, { weekStartsOn: 1 }));
-  const myLastWeekHours = sumHoursInRange(startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }), endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }));
-  const myThisMonthHours = sumHoursInRange(startOfMonth(now), endOfMonth(now));
-  const myLastMonthHours = sumHoursInRange(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
-
-  // Custom formatter for the Y-Axis (hours as "Xh")
-  const formatTimeTick = (val: number) => {
-    return `${val}h`;
-  };
-
-  if (viewMode === "my-timesheets") {
-    return (
-      <DashboardLayout>
-        <div className="space-y-6 animate-fade-in pb-12 print:p-0">
-          
-          {/* Header Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Timesheet Summary</h1>
-              <p className="text-muted-foreground text-sm font-medium">Detailed Overview of Logged Timesheets and Hours</p>
-            </div>
-
-            {/* View All Timesheets Switch Button */}
-            <div className="flex items-center gap-3">
-              {/* Real time live status indicator */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/50 text-emerald-800 text-[10px] font-black uppercase tracking-wider shadow-none">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                Live Tracker Active
-              </div>
-
-              <Button
-                onClick={() => setViewMode("overview")}
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-lg font-bold text-xs gap-2 border-border/50 hover:bg-accent/10 text-gray-700 shadow-none"
-              >
-                <Clock className="h-3.5 w-3.5" />
-                View All Timesheets
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                    <Download className="h-4 w-4" />
-                    Export
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 bg-white">
-                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                    <span>Excel</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                    <FileJson className="h-4 w-4 text-blue-600" />
-                    <span>CSV</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                    <FileType className="h-4 w-4 text-red-600" />
-                    <span>PDF</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                    <Printer className="h-4 w-4 text-gray-600" />
-                    <span>Print</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* Gray Dashboard Container Wrapper */}
-          <div className="bg-gray-50/70 p-6 rounded-2xl border border-border/40 space-y-6 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-            
-            {/* 5-Column High Density Metrics Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              
-              {/* Metric 1 */}
-              <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-                <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Total Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">{myTotalHours.toFixed(1)} Hrs</span>
-              </Card>
-
-              {/* Metric 2 */}
-              <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-                <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Last Month Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">{myLastMonthHours.toFixed(1)} Hrs</span>
-              </Card>
-
-              {/* Metric 3 */}
-              <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-                <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">This Month Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">{myThisMonthHours.toFixed(1)} Hrs</span>
-              </Card>
-
-              {/* Metric 4 */}
-              <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-                <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Last Week Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">{myLastWeekHours.toFixed(1)} Hrs</span>
-              </Card>
-
-              {/* Metric 5 */}
-              <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-                <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">This Week Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-950 mt-2 text-indigo-650">{myThisWeekHours.toFixed(1)} Hrs</span>
-              </Card>
-            </div>
-
-            {/* Filters Row Card */}
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4 items-end text-xs font-bold font-sans">
-                
-                {/* Period Select */}
-                <div className="space-y-1.5 text-left">
-                  <span className="text-gray-500 font-bold">Period</span>
-                  <Select value={period} onValueChange={setPeriod}>
-                    <SelectTrigger className="w-full h-9 rounded-lg border-border/50 text-xs font-medium shadow-none bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/40">
-                      <SelectItem value="Today" className="text-xs font-medium">Today</SelectItem>
-                      <SelectItem value="Yesterday" className="text-xs font-medium">Yesterday</SelectItem>
-                      <SelectItem value="This Week" className="text-xs font-medium">This Week</SelectItem>
-                      <SelectItem value="Last Week" className="text-xs font-medium">Last Week</SelectItem>
-                      <SelectItem value="This Month" className="text-xs font-medium">This Month</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Task Input searchable */}
-                <div className="space-y-1.5 text-left">
-                  <span className="text-gray-500 font-bold">Task</span>
-                  <Input
-                    placeholder="Search Task..."
-                    value={taskSearch}
-                    onChange={(e) => setTaskSearch(e.target.value)}
-                    className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
-                  />
-                </div>
-
-                {/* Project Input searchable */}
-                <div className="space-y-1.5 text-left">
-                  <span className="text-gray-500 font-bold">Project</span>
-                  <Input
-                    placeholder="Search Project..."
-                    value={projectSearch}
-                    onChange={(e) => setProjectSearch(e.target.value)}
-                    className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
-                  />
-                </div>
-
-                {/* Apply Button */}
-                <Button 
-                  onClick={handleApplyFilters}
-                  className="w-full h-9 rounded-lg font-bold text-xs bg-gray-900 hover:bg-gray-800 text-white shadow-none"
-                >
-                  Apply
-                </Button>
-              </div>
-            </Card>
-
-            {/* Daily logged time bar chart for My Timesheets */}
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden p-6">
-              <CardHeader className="p-0 pb-4 text-left">
-                <CardTitle className="text-xs font-black text-gray-900 tracking-tight uppercase">
-                  Weekly Hour Logs Breakdown
-                </CardTitle>
-              </CardHeader>
-              <div className="h-[260px] w-full">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={weeklyMyLoggedData} margin={{ left: -25, right: 10, bottom: 5 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                    <XAxis 
-                      dataKey="day" 
-                      fontSize={10} 
-                      fontWeight={600}
-                      stroke="#9ca3af" 
-                      tickLine={false} 
-                      axisLine={false}
-                      dy={6}
-                    />
-                    <YAxis
-                      domain={[0, (dataMax: number) => Math.max(8, Math.ceil(dataMax) + 1)]}
-                      allowDecimals={false}
-                      tickFormatter={(val) => `${val}h`}
-                      fontSize={10}
-                      fontWeight={600}
-                      stroke="#9ca3af"
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      formatter={(val: any) => [`${val} hrs`, "Logged"]}
-                      contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
-                    />
-                    <Bar 
-                      dataKey="hours" 
-                      fill="hsl(213, 44%, 25%)" 
-                      radius={[4, 4, 0, 0]}
-                      barSize={32}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Timesheets Data Table */}
-            <Card className="overflow-hidden">
-              <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
-                <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                  My Logged Entries
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Staff Member</TableHead>
-                        <TableHead>Task</TableHead>
-                        <TableHead>Project</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead className="text-right">Billable</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTimesheets.length > 0 ? (
-                        filteredTimesheets.map((t) => (
-                          <TableRow key={t.id}>
-                            <TableCell className="font-medium">{t.staff}</TableCell>
-                            <TableCell>{t.task}</TableCell>
-                            <TableCell>{t.project}</TableCell>
-                            <TableCell>{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
-                            <TableCell>{t.hours}h</TableCell>
-                            <TableCell className="text-right">
-                              <Badge
-                                className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                  t.billable
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : "bg-gray-100 text-gray-600 border-gray-200"
-                                }`}
-                              >
-                                {t.billable ? "Yes" : "No"}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableEmpty colSpan={6}>No logged timesheet records match your filter criteria.</TableEmpty>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  // Default Overview mode
-  return (
-    <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-12 print:p-0">
-        
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Timesheets Overview</h1>
-            <p className="text-muted-foreground text-sm font-medium">Track operational activities, log billable hours, and monitor staff project allocations</p>
-          </div>
-
-          {/* My Timesheets Toggle Button */}
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setViewMode("my-timesheets")}
-              variant="outline"
-              size="sm"
-              className="h-9 rounded-lg font-bold text-xs gap-2 border-border/50 hover:bg-accent/10 text-gray-700 shadow-none"
-            >
-              <User className="h-3.5 w-3.5" />
-              My Timesheets
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                  <Download className="h-4 w-4" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white">
-                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                  <span>Excel</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                  <span>CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                  <FileType className="h-4 w-4 text-red-600" />
-                  <span>PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                  <Printer className="h-4 w-4 text-gray-600" />
-                  <span>Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Gray Dashboard Container Wrapper */}
-        <div className="bg-gray-50/70 p-6 rounded-2xl border border-border/40 space-y-6 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-          
-          {/* Filters Row Card */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end text-xs font-bold font-sans">
-              
-              {/* Period Select */}
-              <div className="space-y-1.5 text-left">
-                <span className="text-gray-500 font-bold">Period</span>
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger className="w-full h-9 rounded-lg border-border/50 text-xs font-medium shadow-none bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border/40">
-                    <SelectItem value="Today" className="text-xs font-medium">Today</SelectItem>
-                    <SelectItem value="Yesterday" className="text-xs font-medium">Yesterday</SelectItem>
-                    <SelectItem value="This Week" className="text-xs font-medium">This Week</SelectItem>
-                    <SelectItem value="Last Week" className="text-xs font-medium">Last Week</SelectItem>
-                    <SelectItem value="This Month" className="text-xs font-medium">This Month</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Staff Member Select */}
-              <div className="space-y-1.5 text-left">
-                <span className="text-gray-500 font-bold">Staff Member</span>
-                <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                  <SelectTrigger className="w-full h-9 rounded-lg border-border/50 text-xs font-medium shadow-none bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border/40">
-                    <SelectItem value="All Staff Members" className="text-xs font-medium">All Staff Members</SelectItem>
-                    {(staffData as any[]).map((s) => (
-                      <SelectItem key={s._id} value={`${s.firstname} ${s.lastname}`} className="text-xs font-medium">
-                        {s.firstname} {s.lastname}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Task Input searchable */}
-              <div className="space-y-1.5 text-left">
-                <span className="text-gray-500 font-bold">Task</span>
-                <Input
-                  placeholder="Search Task..."
-                  value={taskSearch}
-                  onChange={(e) => setTaskSearch(e.target.value)}
-                  className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
-                />
-              </div>
-
-              {/* Project Input searchable */}
-              <div className="space-y-1.5 text-left">
-                <span className="text-gray-500 font-bold">Project</span>
-                <Input
-                  placeholder="Search Project..."
-                  value={projectSearch}
-                  onChange={(e) => setProjectSearch(e.target.value)}
-                  className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
-                />
-              </div>
-
-              {/* Apply Button */}
-              <Button 
-                onClick={handleApplyFilters}
-                className="w-full h-9 rounded-lg font-bold text-xs bg-gray-900 hover:bg-gray-800 text-white shadow-none"
-              >
-                Apply
-              </Button>
-            </div>
-          </Card>
-
-          {/* Visual Time scale bar chart replicating the reference image precisely */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden p-6">
-            
-            {/* Custom centered legend */}
-            <div className="flex justify-center pb-6">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold font-sans">
-                <span className="h-3 w-7 bg-[#e5e7eb] border border-gray-300 rounded" />
-                <span className="text-gray-600">{period}</span>
-              </div>
-            </div>
-
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={chartData} margin={{ left: -10, right: 10, bottom: 5 }}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-
-                  <XAxis
-                    dataKey="name"
-                    fontSize={11}
-                    fontWeight={600}
-                    stroke="#9ca3af"
-                    tickLine={false}
-                    axisLine={false}
-                    dy={6}
-                  />
-
-                  <YAxis
-                    domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
-                    allowDecimals={false}
-                    tickFormatter={formatTimeTick}
-                    fontSize={10}
-                    fontWeight={600}
-                    stroke="#9ca3af"
-                    tickLine={false}
-                    axisLine={false}
-                  />
-
-                  <Tooltip
-                    formatter={(val: any) => [formatTimeTick(val), "Logged Time"]}
-                    contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
-                  />
-                  
-                  {/* Today bar - muted light gray with thin gray outline matching mockup screenshot */}
-                  <Bar 
-                    dataKey="value" 
-                    fill="#e5e7eb" 
-                    stroke="#9ca3af" 
-                    strokeWidth={1}
-                    radius={[1, 1, 0, 0]}
-                    barSize={40}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Timesheets Data Table */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
-              <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                Timesheet Activity Records
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Staff Member</TableHead>
-                      <TableHead>Task</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead className="text-right">Billable</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTimesheets.length > 0 ? (
-                      filteredTimesheets.map((t) => (
-                        <TableRow key={t.id}>
-                          <TableCell className="font-medium">{t.staff}</TableCell>
-                          <TableCell>{t.task}</TableCell>
-                          <TableCell>{t.project}</TableCell>
-                          <TableCell>{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
-                          <TableCell>{t.hours}h</TableCell>
-                          <TableCell className="text-right">
-                            <Badge
-                              className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                t.billable
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-gray-100 text-gray-600 border-gray-200"
-                              }`}
-                            >
-                              {t.billable ? "Yes" : "No"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableEmpty colSpan={6}>No timesheet activity matches your filter criteria.</TableEmpty>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export const ReportKBArticles = () => {
-  const [selectedGroup, setSelectedGroup] = useState("All Groups");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const { data: kbGroupsData = [] } = useQuery({
-    queryKey: ["kb-groups"],
-    queryFn: supportService.getKBGroups,
-  });
-
-  const { data: kbArticlesData = [] } = useQuery({
-    queryKey: ["kb-articles", "reports"],
-    queryFn: () => supportService.getKBArticles(undefined, true),
-  });
-
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filteredArticles.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    if (type === "csv" || type === "xlsx") {
-      const headers = ["Article Title", "Group Category", "Date Created", "Status"];
-      const rows = filteredArticles.map(art => [
-        art.title,
-        art.group,
-        art.date,
-        art.status
-      ]);
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `kb_articles_report_${new Date().toISOString().split('T')[0]}.${type}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
-  };
-
-  // Real knowledge base articles fetched from the API, with the group populated server-side
-  const kbArticles = (kbArticlesData as any[]).map((a) => ({
-    id: a._id,
-    title: a.subject,
-    group: a.group?.name || "Uncategorized",
-    status: a.active ? "Published" : "Draft",
-    date: a.createdAt ? format(new Date(a.createdAt), "yyyy-MM-dd") : "-",
-  }));
-
-  // Dynamic filtering based on Group Selection and Search string
-  const filteredArticles = kbArticles.filter(art => {
-    const matchesGroup = selectedGroup === "All Groups" || art.group === selectedGroup;
-    const matchesSearch = art.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesGroup && matchesSearch;
-  });
-
-  // Calculate live statistics from real data
-  const totalArticles = filteredArticles.length;
-  const publishedCount = filteredArticles.filter(a => a.status === "Published").length;
-  const draftCount = totalArticles - publishedCount;
-
-  // Prepare chart dataset — real article counts per group
-  const chartData = Object.entries(
-    filteredArticles.reduce((acc: Record<string, number>, art) => {
-      acc[art.group] = (acc[art.group] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([name, count]) => ({ name, count }));
-
-  return (
-    <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-12 print:p-0">
-        
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">KB Articles Report</h1>
-            <p className="text-muted-foreground text-sm font-medium">Analyze article readership views, popularity trends, and document categories across your Knowledge Base</p>
-          </div>
-          <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
-                  <Download className="h-4 w-4" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 bg-white">
-                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                  <span>Excel</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                  <span>CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
-                  <FileType className="h-4 w-4 text-red-600" />
-                  <span>PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
-                  <Printer className="h-4 w-4 text-gray-600" />
-                  <span>Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Gray Dashboard Container Wrapper */}
-        <div className="bg-gray-50/70 p-6 rounded-2xl border border-border/40 space-y-6 shadow-[0_2px_12px_-5px_rgba(0,0,0,0.03)]">
-          
-          {/* Choose Group & Search Panel */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden p-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-end text-xs font-bold font-sans">
-              
-              {/* Group Selector Dropdown */}
-              <div className="space-y-1.5 text-left col-span-1">
-                <span className="text-gray-500 font-bold">Choose Group</span>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger className="w-full h-9 rounded-lg border-border/50 text-xs font-medium shadow-none bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border/40">
-                    <SelectItem value="All Groups" className="text-xs font-medium">All Groups</SelectItem>
-                    {(kbGroupsData as any[]).map((g) => (
-                      <SelectItem key={g._id} value={g.name} className="text-xs font-medium">{g.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Title Search Input searchable */}
-              <div className="space-y-1.5 text-left col-span-2">
-                <span className="text-gray-500 font-bold">Search Articles</span>
-                <Input
-                  placeholder="Type to filter articles by title..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* Quick Metrics Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            
-            {/* Metric 1 */}
-            <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Total Articles</span>
-              <span className="text-xl font-extrabold text-gray-900 mt-2">{totalArticles}</span>
-            </Card>
-
-            {/* Metric 2 */}
-            <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Published Articles</span>
-              <span className="text-xl font-extrabold text-gray-900 mt-2">{publishedCount}</span>
-            </Card>
-
-            {/* Metric 3 */}
-            <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Draft Articles</span>
-              <span className="text-xl font-extrabold text-gray-900 mt-2">{draftCount}</span>
-            </Card>
-          </div>
-
-          {/* Articles per group bar chart */}
-          {chartData.length > 0 && (
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden p-6">
-              <CardHeader className="p-0 pb-6 text-left">
-                <CardTitle className="text-xs font-black text-gray-900 tracking-tight uppercase">
-                  Articles Per Group
-                </CardTitle>
-              </CardHeader>
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={chartData} margin={{ left: -10, right: 10, bottom: 5 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                    <XAxis
-                      dataKey="name"
-                      fontSize={10}
-                      fontWeight={600}
-                      stroke="#9ca3af"
-                      tickLine={false}
-                      axisLine={false}
-                      dy={6}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      fontSize={10}
-                      fontWeight={600}
-                      stroke="#9ca3af"
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      formatter={(val: any) => [`${val} article(s)`, "Count"]}
-                      contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      fill="#0ea5e9"
-                      radius={[4, 4, 0, 0]}
-                      barSize={32}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          )}
-
-          {/* Articles Data Table */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-white p-5 border-b border-b-gray-50 pb-4">
-              <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
-                Knowledge Base Articles List
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Article Title</TableHead>
-                      <TableHead>Group Category</TableHead>
-                      <TableHead>Date Created</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredArticles.length > 0 ? (
-                      filteredArticles.map((art) => (
-                        <TableRow key={art.id}>
-                          <TableCell className="font-medium">{art.title}</TableCell>
-                          <TableCell>{art.group}</TableCell>
-                          <TableCell className="text-muted-foreground">{art.date}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge
-                              className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                art.status === "Published"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-gray-100 text-gray-600 border-gray-200"
-                              }`}
-                            >
-                              {art.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableEmpty colSpan={4}>No KB articles match the chosen group category.</TableEmpty>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export const ReportPurchase = () => {
-  const [period, setPeriod] = useState("all_time");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [search, setSearch] = useState("");
-
-  const { data = {}, isLoading } = useQuery({
-    queryKey: ["purchaseReport", period, fromDate, toDate],
-    queryFn: () => utilityService.getPurchaseReport(period, fromDate, toDate),
-  });
-
-  const purchasesReport = data.purchasesReport || [];
-  const kpis = data.kpis || { totalPurchaseAmount: 0, totalPaid: 0, totalOutstanding: 0, totalGST: 0, count: 0 };
-  const purchaseTrend = data.purchaseTrend || [];
-  const supplierDistribution = data.supplierDistribution || [];
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const exportCSV = () => {
-    let csv = "Bill No,Supplier Name,Bill Date,Due Date,Qty,Rate,Amount,GST Rate (%),Total,Payment Status\n";
-    purchasesReport.forEach((p: any) => {
-      const bDate = p.bill_date ? format(new Date(p.bill_date), "yyyy-MM-dd") : "";
-      const dDate = p.due_date ? format(new Date(p.due_date), "yyyy-MM-dd") : "";
-      csv += `"${p.bill_no || ''}","${p.supplier_name || ''}","${bDate}","${dDate}",${p.quantity || 0},${p.rate || 0},${p.amount || 0},${p.gst_rate || 0},${p.total || 0},"${p.payment_status || ''}"\n`;
-    });
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `purchase_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
-    link.click();
-  };
-
-  const filteredPurchases = purchasesReport.filter((p: any) =>
-    (p.bill_no || "").toLowerCase().includes(search.toLowerCase()) ||
-    (p.supplier_name || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  const COLORS = ["hsl(213, 44%, 25%)", "hsl(152, 69%, 40%)", "hsl(38, 92%, 50%)", "hsl(0, 70%, 55%)", "hsl(270, 60%, 50%)"];
-
-  return (
-    <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-12 print:p-0 print:space-y-4">
-        {/* Header section */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-background p-1.5 rounded-2xl print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Purchase Report</h1>
-            <p className="text-muted-foreground text-sm font-medium">Review and analyze purchase bills, supplier metrics, and payment status breakdown</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Period Selector */}
+        <ReportHeader title={mode === "mine" ? "My Timesheets" : "Timesheets Overview"} description="Time logged on tasks — from task timers and the Time Tracking page">
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} options={TIMESHEET_PERIODS} />
+          {mode === "overview" && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Period</span>
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[140px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none">
-                  <SelectValue placeholder="All Time" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border/50">
-                  <SelectItem value="all_time" className="text-xs font-medium">All Time</SelectItem>
-                  <SelectItem value="this_month" className="text-xs font-medium">This Month</SelectItem>
-                  <SelectItem value="last_month" className="text-xs font-medium">Last Month</SelectItem>
-                  <SelectItem value="this_quarter" className="text-xs font-medium">This Quarter</SelectItem>
-                  <SelectItem value="this_year" className="text-xs font-medium">This Year</SelectItem>
-                  <SelectItem value="custom" className="text-xs font-medium">Custom Range</SelectItem>
+              <FilterLabel>Staff</FilterLabel>
+              <Select value={staffKey} onValueChange={setStaffKey}>
+                <SelectTrigger className="w-[160px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">All Staff</SelectItem>
+                  {staffOptions.map(([k, n]) => <SelectItem key={k} value={k} className="text-xs">{n}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-
-            {period === "custom" && (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">From</span>
-                  <Input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="h-9 w-[130px] text-xs font-medium rounded-lg"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">To</span>
-                  <Input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="h-9 w-[130px] text-xs font-medium rounded-lg"
-                  />
-                </div>
-              </>
-            )}
-
-            <Button onClick={exportCSV} variant="outline" size="sm" className="h-9 rounded-lg gap-2 font-bold text-xs mt-auto">
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </Button>
-            <Button onClick={handlePrint} variant="outline" size="sm" className="h-9 rounded-lg gap-2 font-bold text-xs mt-auto">
-              <Printer className="h-3.5 w-3.5" />
-              Print
-            </Button>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Project</FilterLabel>
+            <Select value={projectKey} onValueChange={setProjectKey}>
+              <SelectTrigger className="w-[160px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Projects</SelectItem>
+                {projectOptions.map(([k, n]) => <SelectItem key={k} value={k} className="text-xs">{n}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Billable</FilterLabel>
+            <Select value={billable} onValueChange={setBillable}>
+              <SelectTrigger className="w-[120px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All</SelectItem>
+                <SelectItem value="yes" className="text-xs">Billable</SelectItem>
+                <SelectItem value="no" className="text-xs">Not billable</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search task</FilterLabel>
+            <div className="relative"><Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Task or project" className="h-9 w-[170px] pl-8 text-xs rounded-lg" /></div>
+          </div>
+          <Button variant="outline" className="h-9 rounded-lg text-xs font-bold" onClick={() => setMode(mode === "overview" ? "mine" : "overview")}>
+            {mode === "overview" ? "My Timesheets" : "All Staff Overview"}
+          </Button>
+          <ExportMenu onExport={onExport} disabled={entriesQ.isLoading} />
+        </ReportHeader>
+
+        {entriesQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load time entries.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label="Total Time" value={hm(total)} hint="hours:minutes" />
+          <Kpi label="Billable" value={hm(billableHrs)} tone="text-emerald-600" />
+          <Kpi label="Not Billable" value={hm(total - billableHrs)} tone="text-amber-600" />
+          <Kpi label="Entries" value={filtered.length} />
         </div>
 
-        {/* KPI Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total Purchases</CardTitle>
-              <Package className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-black text-slate-900">₹{(kpis.totalPurchaseAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{kpis.count} total bills</p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total Paid</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-black text-emerald-700">₹{(kpis.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <p className="text-[11px] text-emerald-600/80 mt-1 font-medium">Cleared bills</p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Outstanding</CardTitle>
-              <AlertCircle className="h-4 w-4 text-rose-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-black text-rose-700">₹{(kpis.totalOutstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <p className="text-[11px] text-rose-600/80 mt-1 font-medium">Unpaid / Partial</p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total GST</CardTitle>
-              <Wallet className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-black text-blue-700">₹{(kpis.totalGST || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <p className="text-[11px] text-blue-600/80 mt-1 font-medium">CGST + SGST + IGST</p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Bill Count</CardTitle>
-              <FileText className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-black text-purple-700">{kpis.count}</div>
-              <p className="text-[11px] text-purple-600/80 mt-1 font-medium">Purchase Invoices</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">
-          <Card className="lg:col-span-2 rounded-2xl border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Monthly Purchase Trend
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-[250px] flex items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : purchaseTrend.length === 0 ? (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-xs italic">
-                  No trend data available for this range.
-                </div>
-              ) : (
-                <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={purchaseTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis dataKey="label" stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
-                      <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, "Amount"]} />
-                      <Area type="monotone" dataKey="amount" stroke="hsl(213, 44%, 25%)" strokeWidth={3} fillOpacity={1} fill="url(#purchaseGrad)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+        {entriesQ.isLoading ? <Loading /> : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="lg:col-span-2">
+                <ChartCard title={`Hours ${b.daily ? "per Day" : "per Month"} — Billable vs Not Billable`} empty={!filtered.length}>
+                  <BarChart data={byTime}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" fontSize={11} minTickGap={6} />
+                    <YAxis fontSize={11} unit="h" />
+                    <Tooltip formatter={(v: any, n: any) => [hm(v), n]} />
+                    <Legend />
+                    <Bar dataKey="billable" stackId="h" name="Billable" fill={COLORS[1]} />
+                    <Bar dataKey="nonBillable" stackId="h" name="Not Billable" fill={COLORS[2]} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartCard>
+              </div>
+              {mode === "overview" && (
+                <ChartCard title="Hours by Staff" empty={!byStaff.length}>
+                  <BarChart data={byStaff.slice(0, 12)}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" fontSize={10} interval={0} angle={-15} textAnchor="end" height={55} />
+                    <YAxis fontSize={11} unit="h" />
+                    <Tooltip formatter={(v: any) => [hm(v), "Hours"]} />
+                    <Bar dataKey="hours" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartCard>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                Supplier Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-[250px] flex items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : supplierDistribution.length === 0 ? (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-xs italic">
-                  No supplier data available.
-                </div>
-              ) : (
-                <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={supplierDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={4}
-                        dataKey="value"
-                      >
-                        {supplierDistribution.map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              <ChartCard title="Hours by Project" empty={!byProject.length}><SimplePie data={byProject.slice(0, 10).map((r) => ({ name: r.name, value: r.hours }))} /></ChartCard>
+            </div>
+            <Card className="rounded-2xl overflow-hidden">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Time Entries ({filtered.length})</CardTitle></CardHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow>{["Date", "Staff", "Task", "Project", "Billable", "Time (h:m)"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                  <TableBody>
+                    {filtered.length === 0 ? <TableEmpty colSpan={6}>No time logged for the selected filters.</TableEmpty> : (
+                      <>
+                        {filtered.map((e) => (
+                          <TableRow key={e.id}>
+                            <TableCell>{fmtDate(e.date)}</TableCell>
+                            <TableCell className="font-medium">{e.staff}</TableCell>
+                            <TableCell>{e.task}</TableCell>
+                            <TableCell className="text-muted-foreground">{e.project}</TableCell>
+                            <TableCell>{e.billable ? <Badge variant="outline" className="text-emerald-700 border-emerald-200">Yes</Badge> : <span className="text-muted-foreground">No</span>}</TableCell>
+                            <TableCell className="font-bold">{hm(e.hours)}</TableCell>
+                          </TableRow>
                         ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, "Purchases"]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        <TableRow className="bg-muted/40 font-bold"><TableCell colSpan={5}>Total</TableCell><TableCell>{hm(total)}</TableCell></TableRow>
+                      </>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// KB Articles Report
+// ════════════════════════════════════════════════════════════════════════════
+
+export const ReportKBArticles = () => {
+  const [groupId, setGroupId] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [period, setPeriod] = useState("all_time");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [search, setSearch] = useState("");
+  const companyName = useCompanyName();
+
+  const { data: groupsRaw } = useQuery({ queryKey: ["kb-groups"], queryFn: supportService.getKBGroups });
+  const articlesQ = useQuery({ queryKey: ["kb-articles", "reports"], queryFn: () => supportService.getKBArticles(undefined, true) });
+  const groups = toList(groupsRaw);
+
+  const articles = toList(articlesQ.data).map((a: any) => ({
+    id: a._id,
+    title: a.subject || "-",
+    groupId: idOf(a.group),
+    group: (typeof a.group === "object" ? a.group?.name : groups.find((g: any) => g._id === a.group)?.name) || "No group",
+    published: a.active !== false,
+    staffOnly: !!a.staff_article,
+    created: a.createdAt,
+    updated: a.updatedAt,
+  }));
+  const range = periodRange(period, from, to);
+  const filtered = articles.filter((a) =>
+    (groupId === "all" || a.groupId === groupId) &&
+    (status === "all" || (status === "published" ? a.published : !a.published)) &&
+    inRange(a.created, range) &&
+    (!search.trim() || a.title.toLowerCase().includes(search.trim().toLowerCase()))
+  );
+  const published = filtered.filter((a) => a.published).length;
+  const staffOnly = filtered.filter((a) => a.staffOnly).length;
+
+  const byGroup = (() => {
+    const m = new Map<string, { name: string; published: number; draft: number }>();
+    filtered.forEach((a) => {
+      const r = m.get(a.group) || { name: a.group, published: 0, draft: 0 };
+      if (a.published) r.published++; else r.draft++;
+      m.set(a.group, r);
+    });
+    return [...m.values()].sort((x, y) => y.published + y.draft - (x.published + x.draft));
+  })();
+  const b = timeBuckets(filtered.map((a) => toLocal(a.created)!).filter(Boolean), range);
+  const byTime = (() => {
+    const map = new Map(b.keys.map((k) => [k, { label: b.labelOf(k), articles: 0 }]));
+    filtered.forEach((a) => { const d = toLocal(a.created); const r = d && map.get(b.keyOf(d)); if (r) r.articles++; });
+    return [...map.values()];
+  })();
+
+  const onExport = (kind: ExportKind) =>
+    runExport(kind, {
+      title: "KB Articles Report",
+      subtitle: [`Created: ${periodLabel(period, from, to)}`, groupId !== "all" ? `Group: ${groups.find((g: any) => g._id === groupId)?.name}` : "", status !== "all" ? `Status: ${titleCase(status)}` : ""].filter(Boolean).join(" · "),
+      companyName,
+      kpis: [
+        { label: "Articles", value: String(filtered.length) },
+        { label: "Published", value: String(published) },
+        { label: "Draft / Inactive", value: String(filtered.length - published) },
+        { label: "Staff only", value: String(staffOnly) },
+        { label: "Groups", value: String(byGroup.length) },
+      ],
+      sections: [
+        { title: "Articles by Group", headers: ["Group", "Published", "Draft", "Total"], rows: byGroup.map((g) => [g.name, g.published, g.draft, g.published + g.draft]) },
+        { title: "Articles", headers: ["Title", "Group", "Status", "Visible to", "Created", "Last Updated"], rows: filtered.map((a) => [a.title, a.group, a.published ? "Published" : "Draft", a.staffOnly ? "Staff only" : "Everyone", fmtDate(a.created), fmtDate(a.updated)]) },
+      ],
+      fileName: "kb_articles_report",
+    });
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title="KB Articles Report" description="Knowledge Base articles by group, status and when they were written">
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Group</FilterLabel>
+            <Select value={groupId} onValueChange={setGroupId}>
+              <SelectTrigger className="w-[160px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Groups</SelectItem>
+                {groups.map((g: any) => <SelectItem key={g._id} value={String(g._id)} className="text-xs">{g.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Status</FilterLabel>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-[130px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All</SelectItem>
+                <SelectItem value="published" className="text-xs">Published</SelectItem>
+                <SelectItem value="draft" className="text-xs">Draft / Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search</FilterLabel>
+            <div className="relative"><Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Article title" className="h-9 w-[170px] pl-8 text-xs rounded-lg" /></div>
+          </div>
+          <ExportMenu onExport={onExport} disabled={articlesQ.isLoading} />
+        </ReportHeader>
+
+        {articlesQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load KB articles.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Kpi label="Articles" value={filtered.length} />
+          <Kpi label="Published" value={published} tone="text-emerald-600" />
+          <Kpi label="Draft / Inactive" value={filtered.length - published} tone="text-amber-600" />
+          <Kpi label="Staff only" value={staffOnly} />
+          <Kpi label="Groups" value={byGroup.length} />
         </div>
 
-        {/* Detailed Data Table */}
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 pb-4">
-            <CardTitle className="text-base font-bold">Purchases Detailed Ledger</CardTitle>
-            <div className="relative w-full sm:w-64 print:hidden">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search bill no or supplier..."
-                className="pl-9 h-8 bg-background border-none shadow-sm rounded-lg text-xs"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+        {articlesQ.isLoading ? <Loading /> : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartCard title="Articles by Group" empty={!byGroup.length}>
+                <BarChart data={byGroup}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" fontSize={10} interval={0} angle={-15} textAnchor="end" height={55} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="published" stackId="a" name="Published" fill={COLORS[1]} />
+                  <Bar dataKey="draft" stackId="a" name="Draft" fill={COLORS[2]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+              <ChartCard title={`Articles Written ${b.daily ? "per Day" : "per Month"}`} empty={!filtered.length}>
+                <LineChart data={byTime}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} minTickGap={6} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="articles" name="Articles" stroke={COLORS[0]} strokeWidth={2} dot={{ r: 2 }} />
+                </LineChart>
+              </ChartCard>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bill No</TableHead>
-                    <TableHead>Supplier Name</TableHead>
-                    <TableHead>Bill Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Rate</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">GST %</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredPurchases.length === 0 ? (
-                    <TableEmpty colSpan={10}>No purchase records match the selected filter.</TableEmpty>
-                  ) : (
-                    filteredPurchases.map((p: any) => (
-                      <TableRow key={p._id}>
-                        <TableCell className="font-medium">{p.bill_no}</TableCell>
-                        <TableCell>{p.supplier_name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {p.bill_date ? format(new Date(p.bill_date), "MMM dd, yyyy") : "-"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {p.due_date ? format(new Date(p.due_date), "MMM dd, yyyy") : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">{p.quantity || 1}</TableCell>
-                        <TableCell className="text-right">₹{(p.rate || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">₹{(p.amount || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{p.gst_rate || 0}%</TableCell>
-                        <TableCell className="text-right">₹{(p.total || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                              p.payment_status === "Paid"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : p.payment_status === "Partially Paid"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200"
-                            }`}
-                          >
-                            {p.payment_status || "Unpaid"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <Card className="rounded-2xl overflow-hidden">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Articles ({filtered.length})</CardTitle></CardHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow>{["Title", "Group", "Status", "Visible to", "Created", "Last Updated"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                  <TableBody>
+                    {filtered.length === 0 ? <TableEmpty colSpan={6}>No articles for the selected filters.</TableEmpty> :
+                      filtered.map((a) => (
+                        <TableRow key={a.id}>
+                          <TableCell className="font-medium">{a.title}</TableCell>
+                          <TableCell>{a.group}</TableCell>
+                          <TableCell><StatusBadge s={a.published ? "Published" : "Draft"} /></TableCell>
+                          <TableCell className="text-muted-foreground">{a.staffOnly ? "Staff only" : "Everyone"}</TableCell>
+                          <TableCell className="text-muted-foreground">{fmtDate(a.created)}</TableCell>
+                          <TableCell className="text-muted-foreground">{fmtDate(a.updated)}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// Purchase Report
+// ════════════════════════════════════════════════════════════════════════════
+
+export const ReportPurchase = () => {
+  const [period, setPeriod] = useState("all_time");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [search, setSearch] = useState("");
+  const [payStatus, setPayStatus] = useState("all");
+  const money = useMoney();
+  const companyName = useCompanyName();
+  const customIncomplete = period === "custom" && !from && !to;
+
+  const { data = {} as any, isLoading, isError } = useQuery({
+    queryKey: ["purchaseReport", period, from, to],
+    queryFn: () => utilityService.getPurchaseReport(period, from, to),
+    enabled: !customIncomplete,
+  });
+  const all: any[] = data.purchasesReport || [];
+  const statuses = [...new Set(all.map((p) => p.payment_status || "Unknown"))];
+  const list = all.filter((p) =>
+    (payStatus === "all" || (p.payment_status || "Unknown") === payStatus) &&
+    (!search.trim() || `${p.bill_no || ""} ${p.supplier_name || ""}`.toLowerCase().includes(search.trim().toLowerCase()))
+  );
+  const k = data.kpis || {};
+  const totalOf = (key: string) => list.reduce((a, p) => a + num(p[key]), 0);
+
+  const table = {
+    headers: ["Bill No", "Supplier", "Bill Date", "Due Date", "Qty", "Rate", "Amount", "GST %", "Total", "Status"],
+    rows: list.map((p) => [p.bill_no || "-", p.supplier_name || "-", fmtDate(p.bill_date), fmtDate(p.due_date), num(p.quantity), money(p.rate), money(p.amount), `${num(p.gst_rate)}%`, money(p.total), p.payment_status || "-"]),
+    footer: ["Total", `${list.length} bills`, "", "", totalOf("quantity"), "", money(totalOf("amount")), "", money(totalOf("total")), ""],
+  };
+
+  const onExport = (kind: ExportKind) =>
+    runExport(kind, {
+      title: "Purchase Report",
+      subtitle: [`Period: ${periodLabel(period, from, to)}`, payStatus !== "all" ? `Status: ${payStatus}` : "", search.trim() ? `Search: ${search.trim()}` : ""].filter(Boolean).join(" · "),
+      companyName,
+      kpis: [
+        { label: "Total Purchases", value: money(k.totalPurchaseAmount) },
+        { label: "Paid", value: money(k.totalPaid) },
+        { label: "Outstanding", value: money(k.totalOutstanding) },
+        { label: "GST", value: money(k.totalGST) },
+        { label: "Bills", value: String(k.count || 0) },
+      ],
+      sections: [
+        { title: "Purchase Bills", ...table },
+        { title: "Purchases by Supplier", headers: ["Supplier", "Amount"], rows: (data.supplierDistribution || []).map((s: any) => [s.name, money(s.value)]) },
+      ],
+      fileName: "purchase_report",
+    });
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title="Purchase Report" description="Purchase bills, suppliers and payment status">
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Payment Status</FilterLabel>
+            <Select value={payStatus} onValueChange={setPayStatus}>
+              <SelectTrigger className="w-[140px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All</SelectItem>
+                {statuses.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search</FilterLabel>
+            <div className="relative"><Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bill no or supplier" className="h-9 w-[170px] pl-8 text-xs rounded-lg" /></div>
+          </div>
+          <ExportMenu onExport={onExport} disabled={isLoading} />
+        </ReportHeader>
+
+        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the purchase report.</div>}
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Kpi label="Total Purchases" value={money(k.totalPurchaseAmount)} hint={`${k.count || 0} bills`} />
+          <Kpi label="Paid" value={money(k.totalPaid)} tone="text-emerald-600" />
+          <Kpi label="Outstanding" value={money(k.totalOutstanding)} tone="text-red-600" />
+          <Kpi label="GST" value={money(k.totalGST)} />
+          <Kpi label="Suppliers" value={(data.supplierDistribution || []).length} />
+        </div>
+
+        {isLoading ? <Loading /> : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <ChartCard title="Purchases by Month" empty={!(data.purchaseTrend || []).length}>
+                  <BarChart data={data.purchaseTrend || []}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" fontSize={11} />
+                    <YAxis fontSize={11} tickFormatter={compact} />
+                    <Tooltip formatter={(v: any) => [money(v), "Purchases"]} />
+                    <Bar dataKey="amount" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartCard>
+              </div>
+              <ChartCard title="By Payment Status" empty={!(data.statusDistribution || []).length}><SimplePie data={data.statusDistribution || []} money={money} /></ChartCard>
             </div>
-          </CardContent>
-        </Card>
+            <ChartCard title="Top Suppliers" empty={!(data.supplierDistribution || []).length}>
+              <BarChart data={(data.supplierDistribution || []).slice(0, 10)} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" fontSize={11} tickFormatter={compact} />
+                <YAxis type="category" dataKey="name" width={140} fontSize={10} />
+                <Tooltip formatter={(v: any) => [money(v), "Amount"]} />
+                <Bar dataKey="value" fill={COLORS[4]} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ChartCard>
+            <Card className="rounded-2xl overflow-hidden">
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Purchase Bills ({list.length})</CardTitle></CardHeader>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1000px]">
+                  <TableHeader><TableRow>{table.headers.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                  <TableBody>
+                    {table.rows.length === 0 ? <TableEmpty colSpan={table.headers.length}>No purchase bills for the selected filters.</TableEmpty> : (
+                      <>
+                        {table.rows.map((r, i) => <TableRow key={i}>{r.map((c, j) => <TableCell key={j} className={j === 0 ? "font-medium" : ""}>{j === 9 ? <StatusBadge s={String(c)} /> : c}</TableCell>)}</TableRow>)}
+                        <TableRow className="bg-muted/40 font-bold">{table.footer.map((c, j) => <TableCell key={j}>{c}</TableCell>)}</TableRow>
+                      </>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

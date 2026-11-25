@@ -59,13 +59,39 @@ import {
   Trash2,
   Clock,
   Wallet,
+  Flag,
+  FileText,
+  MessageSquare,
+  BarChart2,
+  Ticket,
+  FileSignature,
+  DollarSign,
+  StickyNote,
+  Activity,
+  Upload,
+  X,
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { projectService } from "@/api/services/project.service";
 import { staffService } from "@/api/services/staff.service";
 import { salesService } from "@/api/services/sales.service";
 import { timeEntryService } from "@/api/services/time_entry.service";
+import { taskService } from "@/api/services/task.service";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
+import {
+  ProjectTasksTab,
+  ProjectTimesheetsTab,
+  ProjectMilestonesTab,
+  ProjectFilesTab,
+  ProjectDiscussionsTab,
+  ProjectGanttTab,
+  ProjectTicketsTab,
+  ProjectContractsTab,
+  ProjectSalesTab,
+  ProjectNotesTab,
+  ProjectActivityTab,
+} from "@/components/projects/ProjectTabs";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { htmlToPlainText } from "@/lib/richText";
@@ -115,6 +141,7 @@ export default function ProjectView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { symbol } = useCurrency();
+  const { user, isAdmin } = usePermissions();
   const asCustomer = new URLSearchParams(location.search).get("asCustomer") === "1";
 
   const [activeTab, setActiveTab] = useState("Overview");
@@ -131,33 +158,42 @@ export default function ProjectView() {
     enabled: !!id,
   });
 
-  const { data: allTasks = [] } = useQuery<any[]>({
-    queryKey: ["project-tasks-source"],
-    queryFn: () => projectService.getTasks().then((r: any) => r.data || r),
+  const { data: allTasks = [], isLoading: tasksLoading } = useQuery<any[]>({
+    // Starts with "tasks" on purpose: every task change anywhere in the app
+    // (Tasks page, Kanban, task popup) invalidates ["tasks"], which also
+    // refreshes this list — so a changed status shows here straight away.
+    queryKey: ["tasks", "project", id],
+    queryFn: () => taskService.getAll({ rel_id: id, rel_type: "project" }).then((r: any) => (Array.isArray(r) ? r : r?.data || [])),
+    enabled: !!id,
   });
 
+  // The backend already filters by project; keep only this project's tasks for safety.
   const tasks = useMemo(
-    () => allTasks.filter((t: any) => (t.rel_id?._id || t.rel_id) === id),
+    () => allTasks.filter((t: any) => String(t.rel_id?._id || t.rel_id) === id),
     [allTasks, id]
   );
 
   const { data: allTimeEntries = [] } = useQuery<any[]>({
     queryKey: ["time-entries-source"],
-    queryFn: () => timeEntryService.getTimeEntries().then((r: any) => r.data || r),
+    queryFn: () => timeEntryService.getTimeEntries().then((r: any) => (Array.isArray(r) ? r : r?.data || [])),
   });
 
-  const timeEntries = useMemo(
-    () => allTimeEntries.filter((e: any) => e.project === id || (project?.name && e.project === project.name)),
-    [allTimeEntries, id, project]
-  );
+  // Time logged on the project itself, or with the timer on one of its tasks
+  // (the task timer saves the task id only, not the project).
+  const timeEntries = useMemo(() => {
+    const taskIds = new Set(tasks.map((t: any) => String(t._id)));
+    return allTimeEntries.filter(
+      (e: any) => e.project === id || (project?.name && e.project === project.name) || taskIds.has(String(e.task))
+    );
+  }, [allTimeEntries, id, project, tasks]);
 
   const { data: allExpenses = [] } = useQuery<any[]>({
     queryKey: ["expenses-source"],
-    queryFn: () => salesService.getExpenses().then((r: any) => r.data || r),
+    queryFn: () => salesService.getExpenses().then((r: any) => (Array.isArray(r) ? r : r?.data || [])),
   });
 
   const expenses = useMemo(
-    () => allExpenses.filter((e: any) => (e.project?._id || e.project) === id),
+    () => allExpenses.filter((e: any) => String(e.project?._id || e.project) === id),
     [allExpenses, id]
   );
 
@@ -199,7 +235,8 @@ export default function ProjectView() {
   const createTaskMutation = useMutation({
     mutationFn: (payload: any) => projectService.createTask(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-tasks-source"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["project-activity", id] });
       toast({ title: "Task Created", description: "New task added to this project.", className: "bg-green-600 text-white font-bold rounded-2xl" });
       setShowTaskModal(false);
       setTaskForm({ name: "", description: "", priority: "2", assignee: "", duedate: "" });
@@ -579,40 +616,20 @@ export default function ProjectView() {
         )}
 
         {activeTab === "Tasks" && (
-          <TableContainer>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {["Name", "Priority", "Status", "Due Date"].map(h => (
-                    <TableHead key={h}>{h}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.length === 0 ? (
-                  <TableEmpty colSpan={4}>No tasks linked to this project yet.</TableEmpty>
-                ) : (
-                  tasks.map((t: any) => (
-                    <TableRow key={t._id}>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{["", "Low", "Medium", "High", "Urgent"][t.priority] || "Medium"}</TableCell>
-                      <TableCell className="text-muted-foreground">{["", "Not Started", "Awaiting Feedback", "Testing", "In Progress", "Complete"][t.status] || "Not Started"}</TableCell>
-                      <TableCell className="text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <ProjectTasksTab tasks={tasks} isLoading={tasksLoading} staff={staff} readOnly={asCustomer} />
         )}
-
-        {!["Overview", "Tasks"].includes(activeTab) && (
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardContent className="p-10 text-center">
-              <p className="text-sm text-muted-foreground italic">{activeTab} — coming soon.</p>
-            </CardContent>
-          </Card>
+        {activeTab === "Timesheets" && <ProjectTimesheetsTab entries={timeEntries} tasks={tasks} staff={staff} />}
+        {activeTab === "Milestones" && <ProjectMilestonesTab projectId={id!} readOnly={asCustomer} />}
+        {activeTab === "Files" && <ProjectFilesTab projectId={id!} readOnly={asCustomer} />}
+        {activeTab === "Discussions" && (
+          <ProjectDiscussionsTab projectId={id!} currentUserId={user?._id} isAdmin={isAdmin} />
         )}
+        {activeTab === "Gantt" && <ProjectGanttTab tasks={tasks} project={project} />}
+        {activeTab === "Tickets" && <ProjectTicketsTab projectId={id!} />}
+        {activeTab === "Contracts" && <ProjectContractsTab projectId={id!} />}
+        {activeTab === "Sales" && <ProjectSalesTab projectId={id!} expenses={expenses} />}
+        {activeTab === "Notes" && <ProjectNotesTab projectId={id!} readOnly={asCustomer} />}
+        {activeTab === "Activity" && <ProjectActivityTab projectId={id!} />}
       </div>
 
       {/* New Task Dialog */}

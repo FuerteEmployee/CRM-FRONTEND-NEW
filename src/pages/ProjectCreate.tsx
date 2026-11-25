@@ -171,10 +171,31 @@ const ProjectCreate = () => {
     });
   }, [customers, formData.branch, canUseBranch, branches]);
 
-  const { data: staff = [] } = useQuery({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+  // Every staff member of this company. /staff/assignable needs no "Staff"
+  // module permission, so the list is the same for every admin / staff role.
+  const { data: allStaff = [], isLoading: staffLoading } = useQuery<any[]>({
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
+  // Active staff can be picked; an inactive one already on the project stays visible.
+  const staff = useMemo(() => {
+    const list = Array.isArray(allStaff) ? allStaff : (allStaff as any)?.data || [];
+    return list
+      .filter((s: any) => s.active !== false)
+      .sort((a: any, b: any) => `${a.firstname} ${a.lastname}`.localeCompare(`${b.firstname} ${b.lastname}`));
+  }, [allStaff]);
+  const memberOptions = useMemo(() => {
+    const list = Array.isArray(allStaff) ? allStaff : (allStaff as any)?.data || [];
+    const chosen = new Set((formData.team || []).map((m: any) => String(m?._id || m)));
+    const shown = [...staff, ...list.filter((s: any) => s.active === false && chosen.has(String(s._id)))];
+    const nameCount = new Map<string, number>();
+    shown.forEach((s: any) => { const n = `${s.firstname || ""} ${s.lastname || ""}`.trim(); nameCount.set(n, (nameCount.get(n) || 0) + 1); });
+    return shown.map((s: any) => {
+      const n = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email;
+      const label = (nameCount.get(n) || 0) > 1 && s.email ? `${n} (${s.email})` : n;
+      return { value: s._id, label: s.active === false ? `${label} — inactive` : label };
+    });
+  }, [allStaff, staff, formData.team]);
 
   const { data: project } = useQuery({
     queryKey: ["project", id],
@@ -513,10 +534,10 @@ const ProjectCreate = () => {
                         </div>
                       </div>
                       <SearchableSelect
-                        options={staff.map((s: any) => ({ value: s._id, label: `${s.firstname} ${s.lastname}` }))}
+                        options={memberOptions}
                         value={formData.team?.map((m: any) => m?._id || m) || []}
                         onValueChange={(val) => handleSelectChange("team", val)}
-                        placeholder="Select members..."
+                        placeholder={staffLoading ? "Loading staff..." : `Select members (${staff.length} staff)`}
                         multiple
                         className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white"
                       />

@@ -31,10 +31,13 @@ export const utilityService = {
     apiClient.get(`/reports/financial?fromDate=${fromDate}&toDate=${toDate}`),
 
   getSalesReport: (currency, period, fromDate, toDate) =>
-    apiClient.get(`/reports/sales?currency=${currency || 'USD'}&period=${period || 'all_time'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
+    apiClient.get(`/reports/sales?currency=${encodeURIComponent(currency || '')}&period=${period || 'all_time'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
 
   getExpensesReport: (year, excludeBillable) =>
     apiClient.get(`/reports/expenses?year=${year || new Date().getFullYear()}&excludeBillable=${excludeBillable || false}`),
+
+  getExpensesVsIncome: (year) =>
+    apiClient.get(`/reports/expenses-vs-income?year=${year || new Date().getFullYear()}`),
 
   getPurchaseReport: (period, fromDate, toDate) =>
     apiClient.get(`/reports/purchase?period=${period || 'all_time'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),

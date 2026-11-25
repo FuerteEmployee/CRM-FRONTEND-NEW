@@ -11,23 +11,30 @@ import { staffService } from "@/api/services/staff.service";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 import { LeadAddTaskModal } from "@/components/leads/LeadAddTaskModal";
 
+// Same ids as the Tasks module (Backend models/Task.js): 2 = In Progress, 4 = Awaiting Feedback.
 const STATUS_LABELS: Record<number, { label: string; className: string }> = {
   1: { label: "Not Started", className: "bg-slate-100 text-slate-600" },
-  2: { label: "Awaiting Feedback", className: "bg-amber-500/10 text-amber-600" },
+  2: { label: "In Progress", className: "bg-blue-500/10 text-blue-600" },
   3: { label: "Testing", className: "bg-purple-500/10 text-purple-600" },
-  4: { label: "In Progress", className: "bg-blue-500/10 text-blue-600" },
+  4: { label: "Awaiting Feedback", className: "bg-amber-500/10 text-amber-600" },
   5: { label: "Complete", className: "bg-emerald-500/10 text-emerald-600" },
 };
 const PRIORITY_LABELS: Record<number, string> = { 1: "Low", 2: "Medium", 3: "High", 4: "Urgent" };
 
 export function LeadTasksTab({ lead }: { lead: any }) {
   const [addOpen, setAddOpen] = useState(false);
-  const [viewingTask, setViewingTask] = useState<any>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const { data: tasks = [], isLoading } = useQuery<any[]>({
     queryKey: ["lead-tasks", lead._id],
     queryFn: () => taskService.getAll({ rel_id: lead._id, rel_type: "lead" }),
   });
+
+  // Take the open task from the fresh list so status changes show at once.
+  const viewingTask = useMemo(() => {
+    const t = tasks.find((x: any) => x._id === viewingId);
+    return t ? { ...t, displayStatus: t.status || 1, displayPriority: t.priority || 2, isTodo: false } : null;
+  }, [tasks, viewingId]);
 
   const { data: staff = [] } = useQuery<any[]>({
     queryKey: ["staff", "assignable"],
@@ -86,7 +93,7 @@ export function LeadTasksTab({ lead }: { lead: any }) {
                   <TableRow
                     key={t._id}
                     className="cursor-pointer"
-                    onClick={() => setViewingTask(t)}
+                    onClick={() => setViewingId(t._id)}
                   >
                     <TableCell><span className="font-semibold">{t.name}</span></TableCell>
                     <TableCell>{assignedNames || "—"}</TableCell>
@@ -107,7 +114,7 @@ export function LeadTasksTab({ lead }: { lead: any }) {
       {viewingTask && (
         <TaskViewModal
           isOpen={!!viewingTask}
-          onClose={() => setViewingTask(null)}
+          onClose={() => setViewingId(null)}
           task={viewingTask}
           staffOptions={staffOptions}
         />
