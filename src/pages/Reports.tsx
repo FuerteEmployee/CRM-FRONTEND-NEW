@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +27,9 @@ import { timeEntryService } from "@/api/services/time_entry.service";
 import { useCurrency } from "@/context/CurrencyContext";
 import { useSettings } from "@/context/SettingsContext";
 import { formatDate } from "@/lib/dateFormat";
+import { WorkOverview, WorkReportLinks } from "./WorkReports";
+import { PeriodFilter, periodRange, periodLabel } from "./ReportPages";
+import type { ExportKind } from "@/lib/reportExport";
 
 // ── Status ids as the modules store them ────────────────────────────────────
 // Projects (Backend models/Project.js, Frontend pages/Projects.tsx)
@@ -44,21 +46,9 @@ const PAID_INVOICE = ["paid", "recorded"];
 const CANCELLED_INVOICE = ["cancelled", "void", "draft"];
 const CLOSED_TICKET = ["closed", "resolved", "answered_closed"];
 
-type Period = "all" | "week" | "month" | "quarter" | "year";
-const PERIOD_LABEL: Record<Period, string> = {
-  all: "All Time", week: "This Week", month: "This Month", quarter: "This Quarter", year: "This Year",
-};
-
-const periodStart = (p: Period): Date | null => {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (p === "week") { const day = d.getDay(); d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); return d; }
-  if (p === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
-  if (p === "quarter") return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-  if (p === "year") return new Date(now.getFullYear(), 0, 1);
-  return null;
-};
-
+// Period filter: the same choices as every other report (Today, Yesterday,
+// Specific Date, This Week … Custom) — one filter at the top of the page
+// drives every tab, including Work Overview.
 const toList = (d: any): any[] => {
   if (Array.isArray(d)) return d;
   if (Array.isArray(d?.data)) return d.data;
@@ -83,8 +73,15 @@ const Reports = () => {
   const { toast } = useToast();
   const { symbol } = useCurrency();
   const { getSetting } = useSettings();
-  const [period, setPeriod] = useState<Period>("all");
-  const [activeTab, setActiveTab] = useState("master");
+  const [period, setPeriod] = useState("all_time");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const periodText = periodLabel(period, from, to);
+  // Work Overview hands its export here, so the one Export button at the top
+  // exports whatever tab is open.
+  const workExport = useRef<((k: ExportKind) => void) | null>(null);
+  // "work" = Work Overview (customers / staff — done vs pending), shown first.
+  const [activeTab, setActiveTab] = useState("work");
 
   // ─── Parallel data fetching ───
   const results = useQueries({
@@ -116,11 +113,11 @@ const Reports = () => {
   const hiddenCount = results.slice(0, 13).filter((r) => isForbidden(r.error)).length;
 
   // ─── Period filter: each module by its own date ───
-  const start = periodStart(period);
+  const range = periodRange(period, from, to);
   const inPeriod = (fields: string[]) => (row: any) => {
-    if (!start) return true;
+    if (!range) return true;
     const d = firstDate(row, fields);
-    return !!d && d >= start;
+    return !!d && (!range.start || d >= range.start) && (!range.end || d <= range.end);
   };
   const data = (i: number, fields: string[]) => toList(results[i].data).filter(inPeriod(fields));
 
@@ -205,7 +202,7 @@ const Reports = () => {
     expenses.forEach((e: any) => add(firstDate(e, ["date"]), "expenses", num(e.amount) || num(e.total)));
     return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, period]);
+  }, [results, period, from, to]);
 
   const outstanding = Math.max(totalRevenue - totalPaymentsAmt, 0);
 
@@ -268,7 +265,7 @@ const Reports = () => {
       .filter((r: any) => r.assigned > 0 || r.hours > 0)
       .sort((a: any, b: any) => b.completed - a.completed || b.assigned - a.assigned);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, period]);
+  }, [results, period, from, to]);
 
   // ─── Export ───
   const companyName = String(getSetting("companyName", "") || "");
@@ -314,7 +311,7 @@ const Reports = () => {
     doc.text("Master Dashboard Report", 40, 30);
     doc.setFontSize(9);
     doc.text(pdfText(companyName), 40, 48);
-    doc.text(`Period: ${PERIOD_LABEL[period]}   |   Generated: ${new Date().toLocaleString("en-IN")}`, pageW - 40, 48, { align: "right" });
+    doc.text(`Period: ${periodText}   |   Generated: ${new Date().toLocaleString("en-IN")}`, pageW - 40, 48, { align: "right" });
     doc.setTextColor(30, 41, 59);
 
     // KPI boxes
@@ -371,6 +368,11 @@ const Reports = () => {
   };
 
   const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (activeTab === "work") {
+      if (workExport.current) workExport.current(type);
+      else toast({ title: "Please wait", description: "Work data is still loading." });
+      return;
+    }
     if (isAnyLoading) {
       toast({ title: "Please wait", description: "Report data is still loading." });
       return;
@@ -416,15 +418,10 @@ const Reports = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Reports</h1>
-            <p className="text-muted-foreground text-sm">Analytics and insights across all CRM modules · {PERIOD_LABEL[period]}</p>
+            <p className="text-muted-foreground text-sm">Analytics and insights across all CRM modules · {periodText}</p>
           </div>
-          <div className="flex gap-2">
-            <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => <SelectItem key={p} value={p}>{PERIOD_LABEL[p]}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-end gap-2">
+            <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2">
@@ -462,11 +459,17 @@ const Reports = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="work" className="gap-1.5"><Users className="h-3.5 w-3.5" />Work Overview</TabsTrigger>
             <TabsTrigger value="master" className="gap-1.5"><LayoutDashboard className="h-3.5 w-3.5" />Master Dashboard</TabsTrigger>
             {canRevenue && <TabsTrigger value="revenue">Revenue</TabsTrigger>}
             {canProjects && <TabsTrigger value="projects">Projects</TabsTrigger>}
             {canTeam && <TabsTrigger value="team">Team Performance</TabsTrigger>}
           </TabsList>
+
+          {/* ─── WORK OVERVIEW (customers + staff: work done vs pending) ─── */}
+          <TabsContent value="work" className="animate-in fade-in duration-300">
+            <WorkOverview period={period} from={from} to={to} registerExport={(fn) => { workExport.current = fn; }} />
+          </TabsContent>
 
           {/* ─── MASTER DASHBOARD ─── */}
           <TabsContent value="master" className="space-y-6 animate-in fade-in duration-300">
@@ -485,7 +488,7 @@ const Reports = () => {
               <CardHeader className="bg-accent/5 border-b border-border/40 px-6 py-4 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-bold">All Modules — Live Summary</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">Real-time data across all CRM modules · {PERIOD_LABEL[period]}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Real-time data across all CRM modules · {periodText}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {isAnyLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}

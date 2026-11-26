@@ -25,7 +25,6 @@ import { utilityService } from "@/api/services/utility.service";
 import { financeService } from "@/api/services/finance.service";
 import { supportService } from "@/api/services/support.service";
 import { staffService } from "@/api/services/staff.service";
-import { timeEntryService } from "@/api/services/time_entry.service";
 import { leadService } from "@/api/services/lead.service";
 import { taskService } from "@/api/services/task.service";
 import { projectService } from "@/api/services/project.service";
@@ -34,6 +33,7 @@ import { useSettings } from "@/context/SettingsContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { formatDate } from "@/lib/dateFormat";
 import { exportReport, type ExportKind, type ReportExportInput } from "@/lib/reportExport";
+import { REPORT_RULES, reportAllowed, viewLevel } from "@/lib/reportAccess";
 
 // ════════════════════════════════════════════════════════════════════════════
 // Shared helpers
@@ -58,6 +58,8 @@ const titleCase = (s: any) => String(s ?? "-").replace(/_/g, " ").replace(/\b\w/
 export const PERIODS = [
   { value: "all_time", label: "All Time" },
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "date", label: "Specific Date" },
   { value: "this_week", label: "This Week" },
   { value: "last_week", label: "Last Week" },
   { value: "this_month", label: "This Month" },
@@ -67,8 +69,17 @@ export const PERIODS = [
   { value: "last_year", label: "Last Year" },
   { value: "custom", label: "Custom Period" },
 ];
-const periodLabel = (p: string, from?: string, to?: string) =>
-  p === "custom" ? `${from ? fmtDate(from) : "start"} – ${to ? fmtDate(to) : "today"}` : PERIODS.find((x) => x.value === p)?.label || p;
+export const periodLabel = (p: string, from?: string, to?: string) =>
+  p === "date" ? (from ? fmtDate(from) : "-") : p === "custom" ? `${from ? fmtDate(from) : "start"} – ${to ? fmtDate(to) : "today"}` : PERIODS.find((x) => x.value === p)?.label || p;
+
+/** Today as "YYYY-MM-DD" in the browser's time zone. */
+export const todayYmd = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** A period that still needs a date typed in (Specific Date / Custom with no dates). */
+export const needsDate = (period: string, from?: string, to?: string) => (period === "custom" && !from && !to) || (period === "date" && !from);
 
 /** Same ranges as the backend (controllers/report_controller.js periodRange). null = all time. */
 export const periodRange = (period: string, from?: string, to?: string): { start?: Date; end?: Date } | null => {
@@ -81,6 +92,7 @@ export const periodRange = (period: string, from?: string, to?: string): { start
   switch (period) {
     case "today": return { start: day(now), end: endOf(now) };
     case "yesterday": { const d = new Date(now); d.setDate(d.getDate() - 1); return { start: day(d), end: endOf(d) }; }
+    case "date": { const d = toLocal(from); return d ? { start: day(d), end: endOf(d) } : { start: day(now), end: endOf(now) }; }
     case "this_week": { const s = monday(now); const e = new Date(s); e.setDate(e.getDate() + 6); return { start: s, end: endOf(e) }; }
     case "last_week": { const s = monday(now); s.setDate(s.getDate() - 7); const e = new Date(s); e.setDate(e.getDate() + 6); return { start: s, end: endOf(e) }; }
     case "this_month": return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59, 999) };
@@ -186,11 +198,14 @@ function PeriodFilter({
     <>
       <div className="flex flex-col gap-1.5">
         <FilterLabel>Period</FilterLabel>
-        <Select value={period} onValueChange={setPeriod}>
+        <Select value={period} onValueChange={(v) => { setPeriod(v); if (v === "date" && !from) setFrom(todayYmd()); }}>
           <SelectTrigger className="w-[150px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
           <SelectContent>{options.map((p) => <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
+      {period === "date" && (
+        <div className="flex flex-col gap-1.5"><FilterLabel>Date</FilterLabel><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[150px] text-xs rounded-lg" /></div>
+      )}
       {period === "custom" && (
         <>
           <div className="flex flex-col gap-1.5"><FilterLabel>From</FilterLabel><Input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[140px] text-xs rounded-lg" /></div>
@@ -200,6 +215,22 @@ function PeriodFilter({
     </>
   );
 }
+
+/** Small search input used in the report headers. */
+function SearchBox({ value, onChange, placeholder, width = 170 }: { value: string; onChange: (v: string) => void; placeholder: string; width?: number }) {
+  return (
+    <div className="relative">
+      <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-9 pl-8 text-xs rounded-lg" style={{ width }} />
+    </div>
+  );
+}
+/** Does any field of the row contain the search text? */
+const matchesSearch = (row: any, q: string) => {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  return Object.values(row || {}).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(t));
+};
 
 function ReportHeader({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
   return (
@@ -259,6 +290,38 @@ const Loading = () => (
   <Card className="h-80 flex items-center justify-center rounded-2xl"><Loader2 className="h-6 w-6 text-primary animate-spin" /></Card>
 );
 
+/** Blue note shown when the user sees only their own records (role permission "View (Own)"). */
+export function OwnRecordsNote({ what }: { what: string }) {
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-medium text-blue-800">
+      You see only your own records for: {what} (your role's permission).
+    </div>
+  );
+}
+
+/**
+ * Page guard: the report opens only for people with Reports > View and the
+ * permission of the module(s) it is built from (lib/reportAccess.ts) — the
+ * same rule as the sidebar. Otherwise the yellow "no permission" message.
+ */
+export function ReportGate({ slug, title, children }: { slug: string; title: string; children: React.ReactNode }) {
+  const { canView } = usePermissions();
+  if (reportAllowed(slug, canView)) return <>{children}</>;
+  const rule = REPORT_RULES[slug];
+  const needs = canView("Reports") ? rule?.label : "Reports";
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12">
+        <ReportHeader title={title} description="" />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>You do not have permission to see the {title}{needs ? ` (it needs the ${needs} permission)` : ""}. Ask your admin to give you the permission in Setup &gt; Roles.</span>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}
+
 const compact = (v: any) => num(v).toLocaleString("en-IN", { notation: "compact", maximumFractionDigits: 1 });
 
 function SimplePie({ data, money }: { data: { name: string; value: number }[]; money?: (n: any) => string }) {
@@ -304,10 +367,11 @@ export const ReportSales = () => {
   const [to, setTo] = useState("");
   const [view, setView] = useState<"tables" | "charts">("tables");
   const [sub, setSub] = useState<SalesSub>("invoices");
+  const [search, setSearch] = useState("");
   const companyName = useCompanyName();
 
   const { data: currenciesList = [] } = useQuery({ queryKey: ["currencies"], queryFn: () => financeService.getCurrencies() });
-  const customIncomplete = period === "custom" && !from && !to;
+  const customIncomplete = needsDate(period, from, to);
   const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["salesReport", currency, period, from, to],
     queryFn: () => utilityService.getSalesReport(currency, period, from, to),
@@ -341,7 +405,8 @@ export const ReportSales = () => {
 
   // Table definition per sub-report: used for the screen AND the export.
   const tableFor = (id: SalesSub) => {
-    const r = rows[id];
+    // Search (number, customer, status …) narrows the table and its totals.
+    const r = rows[id].filter((x) => matchesSearch(x, search));
     switch (id) {
       case "invoices": return { headers: ["Invoice #", "Customer", "Date", "Due Date", "Tax", "Amount", "Status"], rows: r.map((x) => [x.number, x.clientName, fmtDate(x.date), fmtDate(x.duedate), money(x.total_tax), money(x.total), titleCase(x.status)]), footer: ["Total", `${r.length} invoices`, "", "", money(sum(r, "total_tax")), money(sum(r, "total")), ""], status: 6 };
       case "items": return { headers: ["Item", "Quantity Sold", "Average Price", "Total Revenue"], rows: r.map((x) => [x.name, x.qtySold, money(x.avgPrice), money(x.totalRevenue)]), footer: ["Total", sum(r, "qtySold"), "", money(sum(r, "totalRevenue"))] };
@@ -375,7 +440,7 @@ export const ReportSales = () => {
           access.invoices && { title: "Sales by Customer Group", headers: ["Group", "Amount"], rows: (charts.customerGroupsDistribution || []).map((m: any) => [m.name, money(m.value)]) },
           access.invoices && { title: "Invoices by Status", headers: ["Status", "Invoices"], rows: (charts.invoiceStatusDistribution || []).map((m: any) => [titleCase(m.name), m.value]) },
         ].filter(Boolean) as any[];
-    runExport(kind, { title: "Sales Report", subtitle: ownNote.length ? `${subtitle} · Own records only: ${ownNote.join(", ")}` : subtitle, companyName, kpis, sections, fileName: `sales_report_${view === "tables" ? activeSub : "charts"}` });
+    runExport(kind, { title: "Sales Report", subtitle: (search.trim() ? `Search: ${search.trim()} · ` : "") + (ownNote.length ? `${subtitle} · Own records only: ${ownNote.join(", ")}` : subtitle), companyName, kpis, sections, fileName: `sales_report_${view === "tables" ? activeSub : "charts"}` });
   };
 
   const t = tableFor(activeSub);
@@ -394,11 +459,15 @@ export const ReportSales = () => {
             </Select>
           </div>
           <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search</FilterLabel>
+            <SearchBox value={search} onChange={setSearch} placeholder="Number, customer, status" />
+          </div>
           <ExportMenu onExport={onExport} disabled={isLoading} />
         </ReportHeader>
 
         <LoadError error={loadError} what="the Sales Report" />
-        {customIncomplete && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose a From or To date for the custom period.</div>}
+        {customIncomplete && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{period === "date" ? "Choose the date." : "Choose a From or To date for the custom period."}</div>}
         {ownNote.length > 0 && (
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-medium text-blue-800">
             You see only your own records for: {ownNote.join(", ")} (your role's permission).
@@ -504,6 +573,9 @@ export const ReportExpenses = () => {
   const monthTotals: number[] = data.overallTotal || Array(12).fill(0);
   const yearTotal = num(data.overallTotalYear);
   const expenses: any[] = data.expenses || [];
+  const [search, setSearch] = useState("");
+  // Search narrows the Expense Details table (category / month totals stay for the whole year).
+  const shownExpenses = expenses.filter((e) => matchesSearch(e, search));
   const years: number[] = data.years || [new Date().getFullYear()];
   const charts = data.charts || { billableByCategory: [], nonBillableByCategory: [] };
   const billableTotal = expenses.filter((e) => e.billable).reduce((a, e) => a + num(e.amount), 0);
@@ -516,8 +588,8 @@ export const ReportExpenses = () => {
   };
   const details = {
     headers: ["Date", "Name", "Category", "Customer", "Project", "Payment Mode", "Ref No.", "Billable", "Amount"],
-    rows: expenses.map((e) => [fmtDate(e.date), e.name || "-", e.category, e.customer || "-", e.project || "-", e.paymentmode || "-", e.reference_no || "-", e.billable ? (e.invoiced ? "Yes (invoiced)" : "Yes") : "No", money(e.amount)]),
-    footer: ["Total", `${expenses.length} expenses`, "", "", "", "", "", "", money(yearTotal)],
+    rows: shownExpenses.map((e) => [fmtDate(e.date), e.name || "-", e.category, e.customer || "-", e.project || "-", e.paymentmode || "-", e.reference_no || "-", e.billable ? (e.invoiced ? "Yes (invoiced)" : "Yes") : "No", money(e.amount)]),
+    footer: ["Total", `${shownExpenses.length} expenses`, "", "", "", "", "", "", money(search.trim() ? shownExpenses.reduce((a, e) => a + num(e.amount), 0) : yearTotal)],
   };
 
   const onExport = (kind: ExportKind) =>
@@ -551,6 +623,10 @@ export const ReportExpenses = () => {
             <input type="checkbox" checked={excludeBillable} onChange={(e) => setExcludeBillable(e.target.checked)} className="h-4 w-4" /> Exclude billable
           </label>
           <Button variant={showDetails ? "default" : "outline"} className="h-9 rounded-lg text-xs font-bold" onClick={() => setShowDetails(!showDetails)}>Detailed Report</Button>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search</FilterLabel>
+            <SearchBox value={search} onChange={setSearch} placeholder="Name, category, customer" />
+          </div>
           <ExportMenu onExport={onExport} disabled={isLoading} />
         </ReportHeader>
 
@@ -608,7 +684,7 @@ export const ReportExpenses = () => {
 
             {showDetails && (
               <Card className="rounded-2xl overflow-hidden">
-                <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Expense Details ({expenses.length})</CardTitle></CardHeader>
+                <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Expense Details ({shownExpenses.length}{search.trim() ? ` of ${expenses.length}` : ""})</CardTitle></CardHeader>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow>{details.headers.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
@@ -631,14 +707,25 @@ export const ReportExpenses = () => {
 // Expenses vs Income
 // ════════════════════════════════════════════════════════════════════════════
 
+const EVI_PERIODS = [{ value: "year", label: "Year (month by month)" }, ...PERIODS];
+
 export const ReportExpensesVsIncome = () => {
   const [year, setYear] = useState(new Date().getFullYear());
+  const [period, setPeriod] = useState("year");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const money = useMoney();
   const companyName = useCompanyName();
+  const yearMode = period === "year";
+  const waiting = !yearMode && needsDate(period, from, to);
   const { data = {} as any, isLoading, error: loadError } = useQuery({
-    queryKey: ["expensesVsIncome", year],
-    queryFn: () => utilityService.getExpensesVsIncome(year),
+    queryKey: ["expensesVsIncome", year, period, from, to],
+    queryFn: () => utilityService.getExpensesVsIncome(year, period, from, to),
+    enabled: !waiting,
   });
+  // Row label: "Jan 2026" for the year view; the server's own label (a day or a month) otherwise.
+  const rowLabel = (m: any) => (yearMode ? `${m.month} ${year}` : m.month);
+  const periodText = yearMode ? `Year: ${year}` : `Period: ${periodLabel(period, from, to)}`;
   const months: any[] = data.months || [];
   const totals = data.totals || {};
   const years: number[] = data.years || [new Date().getFullYear()];
@@ -649,14 +736,14 @@ export const ReportExpensesVsIncome = () => {
 
   const table = {
     headers: pick(["Month", "Invoiced", "Income (Received)", "Expenses", "Profit / Loss"]),
-    rows: months.map((m) => pick([`${m.month} ${year}`, money(m.invoiced), money(m.income), money(m.expenses), money(m.profit)])),
+    rows: months.map((m) => pick([rowLabel(m), money(m.invoiced), money(m.income), money(m.expenses), money(m.profit)])),
     footer: pick(["Total", money(totals.invoiced), money(totals.income), money(totals.expenses), money(totals.profit)]),
   };
 
   const onExport = (kind: ExportKind) =>
     runExport(kind, {
       title: "Expenses vs Income",
-      subtitle: `Year: ${year}`,
+      subtitle: periodText,
       companyName,
       kpis: [
         { label: "Income (Received)", value: money(totals.income) },
@@ -665,29 +752,31 @@ export const ReportExpensesVsIncome = () => {
         { label: "Profit Margin", value: `${num(totals.margin)}%` },
         ...(showInv ? [{ label: "Invoiced", value: money(totals.invoiced) }] : []),
       ],
-      sections: [{ title: `Month by Month — ${year}`, ...table }],
-      fileName: `expenses_vs_income_${year}`,
+      sections: [{ title: yearMode ? `Month by Month — ${year}` : data.daily ? "Day by Day" : "Month by Month", ...table }],
+      fileName: yearMode ? `expenses_vs_income_${year}` : `expenses_vs_income_${period}`,
     });
 
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in pb-12">
-        <ReportHeader title="Expenses vs Income" description="Money received (payments) compared with money spent (expenses), month by month">
-          <div className="flex flex-col gap-1.5">
+        <ReportHeader title="Expenses vs Income" description="Money received (payments) compared with money spent (expenses), by month or by day">
+          <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} options={EVI_PERIODS} />
+          {yearMode && <div className="flex flex-col gap-1.5">
             <FilterLabel>Year</FilterLabel>
             <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
               <SelectTrigger className="w-[100px] h-9 rounded-lg text-xs font-bold"><SelectValue /></SelectTrigger>
               <SelectContent>{years.map((y) => <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>)}</SelectContent>
             </Select>
-          </div>
-          <ExportMenu onExport={onExport} disabled={isLoading} />
+          </div>}
+          <ExportMenu onExport={onExport} disabled={isLoading || waiting} />
         </ReportHeader>
 
         <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-start gap-2 text-xs font-medium">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          Income = payments actually received in that month. Amounts are added as they are stored, so use this report when payments and expenses are in one currency.
+          Income = payments actually received in that {yearMode || !data.daily ? "month" : "day"}. Amounts are added as they are stored, so use this report when payments and expenses are in one currency.
         </div>
         <LoadError error={loadError} what="Expenses vs Income (it needs both Payments and Expenses permission)" />
+        {waiting && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{period === "date" ? "Choose the date." : "Choose a From or To date for the custom period."}</div>}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Income (Received)" value={money(totals.income)} tone="text-emerald-600" />
@@ -698,7 +787,7 @@ export const ReportExpensesVsIncome = () => {
 
         {isLoading ? <Loading /> : (
           <>
-            <ChartCard title={`Income vs Expenses — ${year}`} empty={!hasData} height={380}>
+            <ChartCard title={`Income vs Expenses — ${yearMode ? year : periodLabel(period, from, to)}`} empty={!hasData} height={380}>
               <ComposedChart data={months}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="month" fontSize={11} />
@@ -716,7 +805,7 @@ export const ReportExpensesVsIncome = () => {
                 <TableBody>
                   {months.map((m, i) => (
                     <TableRow key={i}>
-                      <TableCell className="font-medium">{m.month} {year}</TableCell>
+                      <TableCell className="font-medium">{rowLabel(m)}</TableCell>
                       {showInv && <TableCell className="text-right text-muted-foreground">{money(m.invoiced)}</TableCell>}
                       <TableCell className="text-right text-emerald-700">{money(m.income)}</TableCell>
                       <TableCell className="text-right text-red-600">{money(m.expenses)}</TableCell>
@@ -747,7 +836,10 @@ export const ReportLeads = () => {
   const [to, setTo] = useState("");
   const [staffId, setStaffId] = useState("all");
   const [sourceId, setSourceId] = useState("all");
+  const [search, setSearch] = useState("");
   const companyName = useCompanyName();
+  const { permissions, isAdmin: isAdminUser, user: me } = usePermissions();
+  const leadsLevel = viewLevel(permissions, isAdminUser || !!me?.is_superadmin || me?.admin === true, "Leads");
 
   const leadsQ = useQuery({ queryKey: ["leads", "report"], queryFn: () => leadService.getAll() });
   const { data: sourcesRaw } = useQuery({ queryKey: ["lead-sources", "report"], queryFn: leadService.getSources });
@@ -768,7 +860,8 @@ export const ReportLeads = () => {
   const filtered = leads.filter((l) =>
     inRange(leadDate(l), range) &&
     (staffId === "all" || idOf(l.assigned) === staffId || idOf(l.addedfrom) === staffId) &&
-    (sourceId === "all" || idOf(l.source) === sourceId)
+    (sourceId === "all" || idOf(l.source) === sourceId) &&
+    (!search.trim() || [l.name, l.company, l.email, l.phonenumber, l.title, l.city].filter(Boolean).join(" ").toLowerCase().includes(search.trim().toLowerCase()))
   );
   const converted = filtered.filter(isConverted);
   const lost = filtered.filter((l) => l.lost);
@@ -788,7 +881,7 @@ export const ReportLeads = () => {
     });
     return [...map.values()].map((r) => ({ ...r, rate: rate(r.converted, r.created) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered.length, period, from, to, staffId, sourceId, leadsQ.dataUpdatedAt]);
+  }, [filtered.length, period, from, to, staffId, sourceId, search, leadsQ.dataUpdatedAt]);
 
   const group = (keyFn: (l: any) => string) => {
     const m = new Map<string, { name: string; created: number; converted: number; lost: number }>();
@@ -828,7 +921,7 @@ export const ReportLeads = () => {
   ];
 
   const onExport = (kind: ExportKind) => {
-    const filters = [`Period: ${periodLabel(period, from, to)}`, staffId !== "all" ? `Staff: ${staffName(staffId)}` : "", sourceId !== "all" ? `Source: ${sources.find((s: any) => s._id === sourceId)?.name}` : ""].filter(Boolean).join(" · ");
+    const filters = [`Period: ${periodLabel(period, from, to)}`, staffId !== "all" ? `Staff: ${staffName(staffId)}` : "", sourceId !== "all" ? `Source: ${sources.find((s: any) => s._id === sourceId)?.name}` : "", search.trim() ? `Search: ${search.trim()}` : ""].filter(Boolean).join(" · ");
     const sections = mode === "staff"
       ? [{ title: "Conversions by Staff (assigned)", headers: ["Staff", "Leads", "Converted", "Lost", "Junk", "Conversion %"], rows: byStaff.map((r) => [r.name, r.created, r.converted, r.lost, r.junk, `${r.rate}%`]), footer: ["Total", filtered.length, converted.length, lost.length, junk.length, `${rate(converted.length, filtered.length)}%`] }]
       : [
@@ -867,10 +960,15 @@ export const ReportLeads = () => {
           <Button variant="outline" className="h-9 rounded-lg text-xs font-bold gap-2" onClick={() => setMode(mode === "general" ? "staff" : "general")}>
             {mode === "general" ? <><User className="h-3.5 w-3.5" />Staff Report</> : <><TrendingUp className="h-3.5 w-3.5" />General Report</>}
           </Button>
+          <div className="flex flex-col gap-1.5">
+            <FilterLabel>Search</FilterLabel>
+            <SearchBox value={search} onChange={setSearch} placeholder="Name, company, email, phone" />
+          </div>
           <ExportMenu onExport={onExport} disabled={leadsQ.isLoading} />
         </ReportHeader>
 
         <LoadError error={leadsQ.error} what="leads" />
+        {leadsLevel === "own" && <OwnRecordsNote what="Leads" />}
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {kpis.map((k) => <Kpi key={k.label} label={k.label} value={leadsQ.isLoading ? "…" : k.value} />)}
@@ -953,6 +1051,7 @@ export const ReportLeads = () => {
 const TIMESHEET_PERIODS = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
+  { value: "date", label: "Specific Date" },
   { value: "this_week", label: "This Week" },
   { value: "last_week", label: "Last Week" },
   { value: "this_month", label: "This Month" },
@@ -961,7 +1060,10 @@ const TIMESHEET_PERIODS = [
   { value: "all_time", label: "All Time" },
   { value: "custom", label: "Custom Period" },
 ];
-const hm = (h: number) => {
+/** "10:05 am – 12:40 pm" from the timer start/end (old entries have none: "-"). */
+export const clockTime = (v: any) => (v ? new Date(v).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : "");
+export const clockSpan = (a: any, b: any) => (a ? clockTime(a) + (b ? " – " + clockTime(b) : "") : "-");
+export const hm = (h: number) => {
   const mins = Math.round(num(h) * 60);
   return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
 };
@@ -978,7 +1080,9 @@ export const ReportTimesheets = () => {
   const { user } = usePermissions();
   const companyName = useCompanyName();
 
-  const entriesQ = useQuery({ queryKey: ["time-entries-source"], queryFn: () => timeEntryService.getTimeEntries().then(toList) });
+  // Everyone's entries for admins / Reports > "View Timesheets Report" / Tasks View (Global); else only their own.
+  const entriesQ = useQuery({ queryKey: ["timesheets-report"], queryFn: () => utilityService.getTimesheetsReport() });
+  const allStaff = (entriesQ.data as any)?.access?.allStaff !== false;
   const { data: staffRaw } = useQuery({ queryKey: ["staff", "assignable"], queryFn: staffService.getAssignable });
   const { data: tasksRaw } = useQuery({ queryKey: ["tasks-report"], queryFn: () => taskService.getAll() });
   const { data: projectsRaw } = useQuery({ queryKey: ["projects-report"], queryFn: () => projectService.getAll() });
@@ -989,7 +1093,7 @@ export const ReportTimesheets = () => {
 
   // Each entry with real names: member may be a staff id or a typed name;
   // task / project may be an id (task timer) or typed text (Time Tracking page).
-  const entries = useMemo(() => toList(entriesQ.data).map((e: any) => {
+  const entries = useMemo(() => toList((entriesQ.data as any)?.entries).map((e: any) => {
     const task = isObjectIdLike(e.task) ? taskById.get(e.task) : null;
     const projectId = isObjectIdLike(e.project) ? e.project : task?.rel_type === "project" ? idOf(task.rel_id) : "";
     const project = projectId ? projectById.get(projectId) : null;
@@ -1005,6 +1109,8 @@ export const ReportTimesheets = () => {
       projectKey: project ? String(project._id) : e.project && !isObjectIdLike(e.project) ? `name:${e.project}` : "none",
       project: project?.name || (e.project && !isObjectIdLike(e.project) ? e.project : "-"),
       date: e.date,
+      start: e.start_time || null,
+      end: e.end_time || null,
       hours: num(e.hours),
       billable: !!e.billable,
     };
@@ -1081,7 +1187,7 @@ export const ReportTimesheets = () => {
       sections: [
         ...(mode === "overview" ? [{ title: "Time by Staff", headers: ["Staff", "Entries", "Billable (h:m)", "Total (h:m)"], rows: byStaff.map((r) => [r.name, r.entries, hm(r.billable), hm(r.hours)]) }] : []),
         { title: "Time by Project", headers: ["Project", "Entries", "Billable (h:m)", "Total (h:m)"], rows: byProject.map((r) => [r.name, r.entries, hm(r.billable), hm(r.hours)]) },
-        { title: "Time Entries", headers: ["Date", "Staff", "Task", "Project", "Billable", "Time (h:m)"], rows: filtered.map((e) => [fmtDate(e.date), e.staff, e.task, e.project, e.billable ? "Yes" : "No", hm(e.hours)]), footer: ["Total", "", "", "", "", hm(total)] },
+        { title: "Time Entries", headers: ["Date", "Start – End", "Staff", "Task", "Project", "Billable", "Time (h:m)"], rows: filtered.map((e) => [fmtDate(e.date), clockSpan(e.start, e.end), e.staff, e.task, e.project, e.billable ? "Yes" : "No", hm(e.hours)]), footer: ["Total", "", "", "", "", "", hm(total)] },
       ],
       fileName: `timesheets_${mode}`,
     });
@@ -1092,7 +1198,7 @@ export const ReportTimesheets = () => {
       <div className="space-y-6 animate-fade-in pb-12">
         <ReportHeader title={mode === "mine" ? "My Timesheets" : "Timesheets Overview"} description="Time logged on tasks — from task timers and the Time Tracking page">
           <PeriodFilter period={period} setPeriod={setPeriod} from={from} setFrom={setFrom} to={to} setTo={setTo} options={TIMESHEET_PERIODS} />
-          {mode === "overview" && (
+          {mode === "overview" && allStaff && (
             <div className="flex flex-col gap-1.5">
               <FilterLabel>Staff</FilterLabel>
               <Select value={staffKey} onValueChange={setStaffKey}>
@@ -1129,13 +1235,16 @@ export const ReportTimesheets = () => {
             <FilterLabel>Search task</FilterLabel>
             <div className="relative"><Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Task or project" className="h-9 w-[170px] pl-8 text-xs rounded-lg" /></div>
           </div>
-          <Button variant="outline" className="h-9 rounded-lg text-xs font-bold" onClick={() => setMode(mode === "overview" ? "mine" : "overview")}>
-            {mode === "overview" ? "My Timesheets" : "All Staff Overview"}
-          </Button>
+          {allStaff && (
+            <Button variant="outline" className="h-9 rounded-lg text-xs font-bold" onClick={() => setMode(mode === "overview" ? "mine" : "overview")}>
+              {mode === "overview" ? "My Timesheets" : "All Staff Overview"}
+            </Button>
+          )}
           <ExportMenu onExport={onExport} disabled={entriesQ.isLoading} />
         </ReportHeader>
 
         <LoadError error={entriesQ.error} what="time entries" />
+        {!entriesQ.isLoading && !allStaff && <OwnRecordsNote what="Timesheets (to see all staff, your role needs Reports > View Timesheets Report)" />}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Total Time" value={hm(total)} hint="hours:minutes" />
@@ -1177,13 +1286,14 @@ export const ReportTimesheets = () => {
               <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">Time Entries ({filtered.length})</CardTitle></CardHeader>
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader><TableRow>{["Date", "Staff", "Task", "Project", "Billable", "Time (h:m)"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
+                  <TableHeader><TableRow>{["Date", "Start – End", "Staff", "Task", "Project", "Billable", "Time (h:m)"].map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
                   <TableBody>
-                    {filtered.length === 0 ? <TableEmpty colSpan={6}>No time logged for the selected filters.</TableEmpty> : (
+                    {filtered.length === 0 ? <TableEmpty colSpan={7}>No time logged for the selected filters.</TableEmpty> : (
                       <>
                         {filtered.map((e) => (
                           <TableRow key={e.id}>
                             <TableCell>{fmtDate(e.date)}</TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">{clockSpan(e.start, e.end)}</TableCell>
                             <TableCell className="font-medium">{e.staff}</TableCell>
                             <TableCell>{e.task}</TableCell>
                             <TableCell className="text-muted-foreground">{e.project}</TableCell>
@@ -1191,7 +1301,7 @@ export const ReportTimesheets = () => {
                             <TableCell className="font-bold">{hm(e.hours)}</TableCell>
                           </TableRow>
                         ))}
-                        <TableRow className="bg-muted/40 font-bold"><TableCell colSpan={5}>Total</TableCell><TableCell>{hm(total)}</TableCell></TableRow>
+                        <TableRow className="bg-muted/40 font-bold"><TableCell colSpan={6}>Total</TableCell><TableCell>{hm(total)}</TableCell></TableRow>
                       </>
                     )}
                   </TableBody>
@@ -1384,7 +1494,7 @@ export const ReportPurchase = () => {
   const [payStatus, setPayStatus] = useState("all");
   const money = useMoney();
   const companyName = useCompanyName();
-  const customIncomplete = period === "custom" && !from && !to;
+  const customIncomplete = needsDate(period, from, to);
 
   const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["purchaseReport", period, from, to],
@@ -1504,3 +1614,6 @@ export const ReportPurchase = () => {
     </DashboardLayout>
   );
 };
+
+// Shared building blocks for the other report pages (pages/WorkReports.tsx).
+export { ExportMenu, runExport, FilterLabel, PeriodFilter, ReportHeader, Kpi, ChartCard, LoadError, Loading, isForbidden, useCompanyName, fmtDate, COLORS, toList, num, titleCase };

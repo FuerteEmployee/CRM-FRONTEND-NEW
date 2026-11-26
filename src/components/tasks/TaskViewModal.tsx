@@ -354,10 +354,15 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
       setIsTimerRunning(false);
       const hours = roundTimerHours(elapsedSeconds);
       if (hours > 0) {
+        // start_time / end_time: when the work was done (Reports > Staff Work / Project Work).
+        const relId = task.rel_id && typeof task.rel_id === "object" ? task.rel_id._id : task.rel_id;
         timeEntryService.createTimeEntry({
           task: task._id,
           hours,
-          date: new Date()
+          date: new Date(),
+          start_time: timerStartMs ? new Date(timerStartMs) : undefined,
+          end_time: new Date(),
+          ...(task.rel_type === "project" && relId ? { project: String(relId) } : {}),
         }).then(() => {
           toast({ title: "Timer Stopped", description: `Time entry saved: ${hours.toFixed(2)} hours` });
           setElapsedSeconds(0);

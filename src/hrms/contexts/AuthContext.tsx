@@ -23,6 +23,7 @@ export function useAuth() {
 }
 
 import { usePermissionContext } from "@/context/PermissionContext";
+import { guardedLogout } from "@/lib/logoutGuard";
 import { useResolvedHrmsPermissions } from "@/hrms/hooks/usePermission";
 
 // Setup > Staff's per-staff permission overrides (and Setup > Roles) only cover the
@@ -75,7 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: loading,
         login,
         previewLogin,
-        logout: async () => { await logout(); },
+        // Blocked (popup) while tasks due today / overdue are open — lib/logoutGuard.ts
+        logout: async () => { await guardedLogout(logout); },
         hasPermission,
         refreshUser,
       }}

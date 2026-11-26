@@ -64,6 +64,7 @@ import i18n from "@/i18n/config";
 import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 import { clearThemeFromDom } from "@/lib/themeUtils";
 import { isSuperAdminEnabled } from "@/lib/panelBranding";
+import { guardedLogout } from "@/lib/logoutGuard";
 
 
 export function TopNavbar() {
@@ -201,12 +202,16 @@ export function TopNavbar() {
   };
 
   const handleLogout = async () => {
-    clearThemeFromDom();
-    await logout();
-    // Drop this tenant's branding and fall back to the public/global settings
-    refreshSettings();
     const loginTarget = isStaff ? "/staff/login" : (user?.is_superadmin && isSuperAdminEnabled()) ? "/super-admin/login" : "/admin/login";
-    navigate(loginTarget);
+    // Staff with tasks due today / overdue are not logged out — a popup lists
+    // the tasks instead (lib/logoutGuard.ts). The steps below run only on a real logout.
+    await guardedLogout(async () => {
+      clearThemeFromDom();
+      await logout();
+      // Drop this tenant's branding and fall back to the public/global settings
+      refreshSettings();
+      navigate(loginTarget);
+    });
   };
 
   // i18next: instant switch — no page reload, no Google Translate cookie.

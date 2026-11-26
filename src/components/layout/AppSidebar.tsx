@@ -105,6 +105,7 @@ import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isPastGrace } from "@/lib/tenantExpiry";
 import { moduleForPath } from "@/lib/planModules";
+import { reportAllowed, reportSlugOf } from "@/lib/reportAccess";
 import { useDocumentDir } from "@/hooks/useDocumentDir";
 
 const fallbackNav = [
@@ -514,7 +515,9 @@ export function AppSidebar() {
       marketingNav: items.filter((i: any) => i.group === "Marketing"),
       managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
-      reportsNav: items.filter((i: any) => i.group === "Reports"),
+      // A report shows only to people who may see the data it is built from
+      // (lib/reportAccess.ts — e.g. Leads report needs Leads permission).
+      reportsNav: items.filter((i: any) => i.group === "Reports" && reportAllowed(reportSlugOf(i.url), canView)),
       setupNav: items.filter((i: any) => i.group === "Setup"),
       hrmsNav: filteredHrms,
     };

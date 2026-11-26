@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { getLandingPath } from "@/lib/landingPath";
+import { guardedLogout } from "@/lib/logoutGuard";
 
 export function AlreadyLoggedInBanner() {
   const { user, permissions, isStaff, logout } = usePermissionContext();
@@ -22,7 +23,7 @@ export function AlreadyLoggedInBanner() {
         </Link>
         <button
           type="button"
-          onClick={() => logout()}
+          onClick={() => guardedLogout(logout)}
           className="font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Logout

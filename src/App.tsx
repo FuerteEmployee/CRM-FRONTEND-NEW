@@ -97,7 +97,9 @@ import GoalCreate from "./pages/GoalCreate";
 import Meetings from "./pages/Meetings";
 import MeetingRoom from "./pages/MeetingRoom";
 import Bookmarks from "./pages/Bookmarks";
-import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles, ReportPurchase } from "./pages/ReportPages";
+import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles, ReportPurchase, ReportGate } from "./pages/ReportPages";
+import { ReportProjectWork, ReportStaffWork, ReportCustomerWork } from "./pages/WorkReports";
+import { PendingTasksLogoutDialog } from "./components/layout/PendingTasksLogoutDialog";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
@@ -350,14 +352,17 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="meetings/room/:roomId" element={<Wrapper><MeetingRoom /></Wrapper>} />
     <Route path="bookmarks" element={<Wrapper><Bookmarks /></Wrapper>} />
     <Route path="reports/master" element={<Wrapper><Reports /></Wrapper>} />
-    <Route path="reports/sales" element={<Wrapper><ReportSales /></Wrapper>} />
-    <Route path="reports/expenses" element={<Wrapper><ReportExpenses /></Wrapper>} />
-    <Route path="reports/expenses-vs-income" element={<Wrapper><ReportExpensesVsIncome /></Wrapper>} />
-    <Route path="reports/purchase" element={<Wrapper><ReportPurchase /></Wrapper>} />
-    <Route path="reports/leads" element={<Wrapper><ReportLeads /></Wrapper>} />
-    <Route path="reports/timesheets" element={<Wrapper><ReportTimesheets /></Wrapper>} />
-    <Route path="reports/kb-articles" element={<Wrapper><ReportKBArticles /></Wrapper>} />
-    <Route path="reports/kb" element={<Wrapper><ReportKBArticles /></Wrapper>} />
+    <Route path="reports/sales" element={<Wrapper><ReportGate slug="sales" title="Sales Report"><ReportSales /></ReportGate></Wrapper>} />
+    <Route path="reports/expenses" element={<Wrapper><ReportGate slug="expenses" title="Expenses Report"><ReportExpenses /></ReportGate></Wrapper>} />
+    <Route path="reports/expenses-vs-income" element={<Wrapper><ReportGate slug="expenses-vs-income" title="Expenses vs Income report"><ReportExpensesVsIncome /></ReportGate></Wrapper>} />
+    <Route path="reports/purchase" element={<Wrapper><ReportGate slug="purchase" title="Purchase Report"><ReportPurchase /></ReportGate></Wrapper>} />
+    <Route path="reports/leads" element={<Wrapper><ReportGate slug="leads" title="Leads Report"><ReportLeads /></ReportGate></Wrapper>} />
+    <Route path="reports/timesheets" element={<Wrapper><ReportGate slug="timesheets" title="Timesheets report"><ReportTimesheets /></ReportGate></Wrapper>} />
+    <Route path="reports/kb-articles" element={<Wrapper><ReportGate slug="kb-articles" title="KB Articles report"><ReportKBArticles /></ReportGate></Wrapper>} />
+    <Route path="reports/kb" element={<Wrapper><ReportGate slug="kb" title="KB Articles report"><ReportKBArticles /></ReportGate></Wrapper>} />
+    <Route path="reports/project-work" element={<Wrapper><ReportGate slug="project-work" title="Project Work report"><ReportProjectWork /></ReportGate></Wrapper>} />
+    <Route path="reports/staff-work" element={<Wrapper><ReportGate slug="staff-work" title="Staff Work report"><ReportStaffWork /></ReportGate></Wrapper>} />
+    <Route path="reports/customer-work" element={<Wrapper><ReportGate slug="customer-work" title="Customer Work report"><ReportCustomerWork /></ReportGate></Wrapper>} />
     <Route path="setup/staff" element={<Wrapper><SetupStaff /></Wrapper>} />
     <Route path="setup/staff/new" element={<Wrapper><SetupStaffForm /></Wrapper>} />
     <Route path="setup/staff/:id" element={<Wrapper><SetupStaffForm /></Wrapper>} />
@@ -474,6 +479,7 @@ const MainApp = () => {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <CssAreaSync />
       <TourContinuation />
+      <PendingTasksLogoutDialog />
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
