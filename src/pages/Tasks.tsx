@@ -1413,7 +1413,7 @@ const Tasks = () => {
                     {canUseBranch && <TableHead>Branch</TableHead>}
                     <TableHead>Tags</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead className="sticky right-0 bg-muted/90 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">Actions</TableHead>
+                    <TableHead className="sticky right-0 bg-muted z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1550,7 +1550,7 @@ const Tasks = () => {
                               <span className="text-xs text-slate-400">-</span>
                             )}
                           </TableCell>
-                          <TableCell className="sticky right-0 bg-card/95 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">
+                          <TableCell className="sticky right-0 bg-card z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">
                             <TableActions
                               onView={() => handleView(task)}
                               onEdit={(isAdmin || can("Tasks", "Edit")) ? () => handleEdit(task) : undefined}

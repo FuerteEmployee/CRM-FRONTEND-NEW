@@ -240,6 +240,21 @@ function ChartCard({ title, children, empty, height = 300 }: { title: string; ch
   );
 }
 
+const isForbidden = (e: any) => e?.status === 403 || e?.response?.status === 403;
+/** Load error banner: a clear "no permission" text for 403, else a generic error. */
+function LoadError({ error, what }: { error: any; what: string }) {
+  if (!error) return null;
+  if (isForbidden(error)) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-2">
+        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>{error?.response?.data?.message || `You do not have permission to see ${what}.`} Ask your admin to give you the permission in Setup &gt; Roles.</span>
+      </div>
+    );
+  }
+  return <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load {what}.</div>;
+}
+
 const Loading = () => (
   <Card className="h-80 flex items-center justify-center rounded-2xl"><Loader2 className="h-6 w-6 text-primary animate-spin" /></Card>
 );
@@ -293,11 +308,19 @@ export const ReportSales = () => {
 
   const { data: currenciesList = [] } = useQuery({ queryKey: ["currencies"], queryFn: () => financeService.getCurrencies() });
   const customIncomplete = period === "custom" && !from && !to;
-  const { data = {} as any, isLoading, isError } = useQuery({
+  const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["salesReport", currency, period, from, to],
     queryFn: () => utilityService.getSalesReport(currency, period, from, to),
     enabled: !customIncomplete,
+    retry: (n: number, e: any) => !isForbidden(e) && n < 1,
   });
+  // Which parts this user may see (same rules as the Invoices / Payments /
+  // Proposals / Estimates pages). Before the first load everything is assumed.
+  const access = data.access || { invoices: "global", payments: "global", proposals: "global", estimates: "global" };
+  const subAllowed = (id: SalesSub) =>
+    ({ invoices: access.invoices, items: access.invoices, credit_notes: access.invoices, customers: access.invoices, payments: access.payments, proposals: access.proposals, estimates: access.estimates } as any)[id];
+  const visibleSubs = SALES_SUBREPORTS.filter((r) => subAllowed(r.id));
+  const ownNote = Object.entries(access).filter(([, v]) => v === "own").map(([k]) => titleCase(k));
 
   const activeCurrency = data.currency || currency;
   const symbol = toList(currenciesList).find((c: any) => c.name === activeCurrency)?.symbol;
@@ -330,29 +353,32 @@ export const ReportSales = () => {
     }
   };
 
+  // A box is shown only when the user may see the module it is counted from.
   const kpis = [
-    { label: "Total Invoiced", value: money(s.totalInvoiced) },
-    { label: "Received", value: money(s.totalReceived) },
-    { label: "Outstanding", value: money(s.outstanding) },
-    { label: "Tax", value: money(s.totalTax) },
-    { label: "Invoices", value: String(s.invoiceCount || 0) },
-    { label: "Credit Notes", value: money(s.creditNotes) },
-  ];
+    access.invoices && { label: "Total Invoiced", value: money(s.totalInvoiced) },
+    access.payments && { label: "Received", value: money(s.totalReceived) },
+    access.invoices && access.payments && { label: "Outstanding", value: money(s.outstanding) },
+    access.invoices && { label: "Tax", value: money(s.totalTax) },
+    access.invoices && { label: "Invoices", value: String(s.invoiceCount || 0) },
+    access.invoices && { label: "Credit Notes", value: money(s.creditNotes) },
+  ].filter(Boolean) as { label: string; value: string }[];
+  // The chosen sub-report may not be allowed (e.g. no Invoices permission).
+  const activeSub: SalesSub = subAllowed(sub) ? sub : visibleSubs[0]?.id || "invoices";
 
   const onExport = (kind: ExportKind) => {
     const subtitle = `Period: ${periodLabel(period, from, to)} · Currency: ${activeCurrency || "-"}`;
     const sections = view === "tables"
-      ? [{ title: SALES_SUBREPORTS.find((x) => x.id === sub)!.label, ...tableFor(sub) }]
+      ? [{ title: SALES_SUBREPORTS.find((x) => x.id === activeSub)!.label, ...tableFor(activeSub) }]
       : [
           { title: "Income by Month", headers: ["Month", "Invoiced", "Received"], rows: (charts.incomeTrend || []).map((m: any) => [m.label, money(m.invoiced), money(m.received)]) },
-          { title: "Payment Modes", headers: ["Mode", "Amount"], rows: (charts.paymentModesDistribution || []).map((m: any) => [m.name, money(m.value)]) },
-          { title: "Sales by Customer Group", headers: ["Group", "Amount"], rows: (charts.customerGroupsDistribution || []).map((m: any) => [m.name, money(m.value)]) },
-          { title: "Invoices by Status", headers: ["Status", "Invoices"], rows: (charts.invoiceStatusDistribution || []).map((m: any) => [titleCase(m.name), m.value]) },
-        ];
-    runExport(kind, { title: "Sales Report", subtitle, companyName, kpis, sections, fileName: `sales_report_${view === "tables" ? sub : "charts"}` });
+          access.payments && { title: "Payment Modes", headers: ["Mode", "Amount"], rows: (charts.paymentModesDistribution || []).map((m: any) => [m.name, money(m.value)]) },
+          access.invoices && { title: "Sales by Customer Group", headers: ["Group", "Amount"], rows: (charts.customerGroupsDistribution || []).map((m: any) => [m.name, money(m.value)]) },
+          access.invoices && { title: "Invoices by Status", headers: ["Status", "Invoices"], rows: (charts.invoiceStatusDistribution || []).map((m: any) => [titleCase(m.name), m.value]) },
+        ].filter(Boolean) as any[];
+    runExport(kind, { title: "Sales Report", subtitle: ownNote.length ? `${subtitle} · Own records only: ${ownNote.join(", ")}` : subtitle, companyName, kpis, sections, fileName: `sales_report_${view === "tables" ? activeSub : "charts"}` });
   };
 
-  const t = tableFor(sub);
+  const t = tableFor(activeSub);
 
   return (
     <DashboardLayout>
@@ -371,9 +397,16 @@ export const ReportSales = () => {
           <ExportMenu onExport={onExport} disabled={isLoading} />
         </ReportHeader>
 
-        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the sales report.</div>}
+        <LoadError error={loadError} what="the Sales Report" />
         {customIncomplete && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Choose a From or To date for the custom period.</div>}
+        {ownNote.length > 0 && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-medium text-blue-800">
+            You see only your own records for: {ownNote.join(", ")} (your role's permission).
+          </div>
+        )}
 
+        {isForbidden(loadError) ? null : (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {kpis.map((k) => <Kpi key={k.label} label={k.label} value={isLoading ? "…" : k.value} />)}
         </div>
@@ -386,15 +419,15 @@ export const ReportSales = () => {
         {isLoading ? <Loading /> : view === "tables" ? (
           <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
             <Card className="rounded-2xl p-2 h-fit">
-              {SALES_SUBREPORTS.map((r) => (
-                <button key={r.id} onClick={() => setSub(r.id)} className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-left transition-colors ${sub === r.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+              {visibleSubs.map((r) => (
+                <button key={r.id} onClick={() => setSub(r.id)} className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-left transition-colors ${activeSub === r.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
                   <span className="flex items-center gap-2"><r.icon className="h-4 w-4" />{r.label}</span>
                   <span className="text-[10px] font-black opacity-70">{rows[r.id].length}</span>
                 </button>
               ))}
             </Card>
             <Card className="rounded-2xl overflow-hidden">
-              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">{SALES_SUBREPORTS.find((x) => x.id === sub)?.label}</CardTitle></CardHeader>
+              <CardHeader className="border-b py-3 px-5"><CardTitle className="text-sm font-bold">{SALES_SUBREPORTS.find((x) => x.id === activeSub)?.label}</CardTitle></CardHeader>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow>{t.headers.map((h) => <TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader>
@@ -429,9 +462,10 @@ export const ReportSales = () => {
                 </BarChart>
               </ChartCard>
             </div>
-            <ChartCard title="Payments by Payment Mode" empty={!(charts.paymentModesDistribution || []).length}><SimplePie data={charts.paymentModesDistribution || []} money={money} /></ChartCard>
-            <ChartCard title="Sales by Customer Group" empty={!(charts.customerGroupsDistribution || []).length}><SimplePie data={charts.customerGroupsDistribution || []} money={money} /></ChartCard>
-            <ChartCard title="Invoices by Status" empty={!(charts.invoiceStatusDistribution || []).length}><SimplePie data={(charts.invoiceStatusDistribution || []).map((d: any) => ({ ...d, name: titleCase(d.name) }))} /></ChartCard>
+            {access.payments && <ChartCard title="Payments by Payment Mode" empty={!(charts.paymentModesDistribution || []).length}><SimplePie data={charts.paymentModesDistribution || []} money={money} /></ChartCard>}
+            {access.invoices && <ChartCard title="Sales by Customer Group" empty={!(charts.customerGroupsDistribution || []).length}><SimplePie data={charts.customerGroupsDistribution || []} money={money} /></ChartCard>}
+            {access.invoices && <ChartCard title="Invoices by Status" empty={!(charts.invoiceStatusDistribution || []).length}><SimplePie data={(charts.invoiceStatusDistribution || []).map((d: any) => ({ ...d, name: titleCase(d.name) }))} /></ChartCard>}
+            {access.invoices && (
             <ChartCard title="Top 10 Items by Revenue" empty={!rows.items.length}>
               <BarChart data={rows.items.slice(0, 10)} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -441,7 +475,10 @@ export const ReportSales = () => {
                 <Bar dataKey="totalRevenue" fill={COLORS[4]} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ChartCard>
+            )}
           </div>
+        )}
+        </>
         )}
       </div>
     </DashboardLayout>
@@ -459,7 +496,7 @@ export const ReportExpenses = () => {
   const money = useMoney();
   const companyName = useCompanyName();
 
-  const { data = {} as any, isLoading, isError } = useQuery({
+  const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["expensesReport", year, excludeBillable],
     queryFn: () => utilityService.getExpensesReport(year, excludeBillable),
   });
@@ -517,7 +554,7 @@ export const ReportExpenses = () => {
           <ExportMenu onExport={onExport} disabled={isLoading} />
         </ReportHeader>
 
-        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the expenses report.</div>}
+        <LoadError error={loadError} what="the Expenses Report" />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Total Expenses" value={money(yearTotal)} hint={`Year ${year}`} tone="text-red-600" />
@@ -598,7 +635,7 @@ export const ReportExpensesVsIncome = () => {
   const [year, setYear] = useState(new Date().getFullYear());
   const money = useMoney();
   const companyName = useCompanyName();
-  const { data = {} as any, isLoading, isError } = useQuery({
+  const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["expensesVsIncome", year],
     queryFn: () => utilityService.getExpensesVsIncome(year),
   });
@@ -606,11 +643,14 @@ export const ReportExpensesVsIncome = () => {
   const totals = data.totals || {};
   const years: number[] = data.years || [new Date().getFullYear()];
   const hasData = months.some((m) => m.income || m.expenses);
+  // "Invoiced" is shown only to users who may see all invoices.
+  const showInv = data.showInvoiced !== false;
+  const pick = <T,>(arr: T[]) => (showInv ? arr : arr.filter((_, i) => i !== 1));
 
   const table = {
-    headers: ["Month", "Invoiced", "Income (Received)", "Expenses", "Profit / Loss"],
-    rows: months.map((m) => [`${m.month} ${year}`, money(m.invoiced), money(m.income), money(m.expenses), money(m.profit)]),
-    footer: ["Total", money(totals.invoiced), money(totals.income), money(totals.expenses), money(totals.profit)],
+    headers: pick(["Month", "Invoiced", "Income (Received)", "Expenses", "Profit / Loss"]),
+    rows: months.map((m) => pick([`${m.month} ${year}`, money(m.invoiced), money(m.income), money(m.expenses), money(m.profit)])),
+    footer: pick(["Total", money(totals.invoiced), money(totals.income), money(totals.expenses), money(totals.profit)]),
   };
 
   const onExport = (kind: ExportKind) =>
@@ -623,7 +663,7 @@ export const ReportExpensesVsIncome = () => {
         { label: "Expenses", value: money(totals.expenses) },
         { label: "Profit / Loss", value: money(totals.profit) },
         { label: "Profit Margin", value: `${num(totals.margin)}%` },
-        { label: "Invoiced", value: money(totals.invoiced) },
+        ...(showInv ? [{ label: "Invoiced", value: money(totals.invoiced) }] : []),
       ],
       sections: [{ title: `Month by Month — ${year}`, ...table }],
       fileName: `expenses_vs_income_${year}`,
@@ -647,13 +687,13 @@ export const ReportExpensesVsIncome = () => {
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           Income = payments actually received in that month. Amounts are added as they are stored, so use this report when payments and expenses are in one currency.
         </div>
-        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the report.</div>}
+        <LoadError error={loadError} what="Expenses vs Income (it needs both Payments and Expenses permission)" />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Income (Received)" value={money(totals.income)} tone="text-emerald-600" />
           <Kpi label="Expenses" value={money(totals.expenses)} tone="text-red-600" />
           <Kpi label="Profit / Loss" value={money(totals.profit)} tone={num(totals.profit) >= 0 ? "text-emerald-700" : "text-red-700"} />
-          <Kpi label="Profit Margin" value={`${num(totals.margin)}%`} hint={`Invoiced: ${money(totals.invoiced)}`} />
+          <Kpi label="Profit Margin" value={`${num(totals.margin)}%`} hint={showInv ? `Invoiced: ${money(totals.invoiced)}` : undefined} />
         </div>
 
         {isLoading ? <Loading /> : (
@@ -677,7 +717,7 @@ export const ReportExpensesVsIncome = () => {
                   {months.map((m, i) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium">{m.month} {year}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{money(m.invoiced)}</TableCell>
+                      {showInv && <TableCell className="text-right text-muted-foreground">{money(m.invoiced)}</TableCell>}
                       <TableCell className="text-right text-emerald-700">{money(m.income)}</TableCell>
                       <TableCell className="text-right text-red-600">{money(m.expenses)}</TableCell>
                       <TableCell className={`text-right font-bold ${m.profit < 0 ? "text-red-700" : ""}`}>{money(m.profit)}</TableCell>
@@ -830,7 +870,7 @@ export const ReportLeads = () => {
           <ExportMenu onExport={onExport} disabled={leadsQ.isLoading} />
         </ReportHeader>
 
-        {leadsQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load leads.</div>}
+        <LoadError error={leadsQ.error} what="leads" />
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {kpis.map((k) => <Kpi key={k.label} label={k.label} value={leadsQ.isLoading ? "…" : k.value} />)}
@@ -1095,7 +1135,7 @@ export const ReportTimesheets = () => {
           <ExportMenu onExport={onExport} disabled={entriesQ.isLoading} />
         </ReportHeader>
 
-        {entriesQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load time entries.</div>}
+        <LoadError error={entriesQ.error} what="time entries" />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Kpi label="Total Time" value={hm(total)} hint="hours:minutes" />
@@ -1270,7 +1310,7 @@ export const ReportKBArticles = () => {
           <ExportMenu onExport={onExport} disabled={articlesQ.isLoading} />
         </ReportHeader>
 
-        {articlesQ.isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load KB articles.</div>}
+        <LoadError error={articlesQ.error} what="KB articles" />
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Kpi label="Articles" value={filtered.length} />
@@ -1346,7 +1386,7 @@ export const ReportPurchase = () => {
   const companyName = useCompanyName();
   const customIncomplete = period === "custom" && !from && !to;
 
-  const { data = {} as any, isLoading, isError } = useQuery({
+  const { data = {} as any, isLoading, error: loadError } = useQuery({
     queryKey: ["purchaseReport", period, from, to],
     queryFn: () => utilityService.getPurchaseReport(period, from, to),
     enabled: !customIncomplete,
@@ -1407,7 +1447,7 @@ export const ReportPurchase = () => {
           <ExportMenu onExport={onExport} disabled={isLoading} />
         </ReportHeader>
 
-        {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Could not load the purchase report.</div>}
+        <LoadError error={loadError} what="the Purchase Report" />
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Kpi label="Total Purchases" value={money(k.totalPurchaseAmount)} hint={`${k.count || 0} bills`} />

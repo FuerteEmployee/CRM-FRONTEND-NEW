@@ -34,10 +34,50 @@ const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttribut
 );
 TableHeader.displayName = "TableHeader";
 
+// Big lists (a page set to "All": thousands of tasks / leads, each row with
+// selects, tooltips, checkboxes) used to be mounted in one go, freezing the
+// browser for seconds. Above PROGRESSIVE_FROM rows, the first FIRST_BATCH rows
+// show at once and the rest are added in small batches on the next frames, so
+// the page stays responsive. Normal pages (≤ PROGRESSIVE_FROM rows) are unchanged.
+const PROGRESSIVE_FROM = 200;
+const FIRST_BATCH = 100;
+const NEXT_BATCH = 150;
+
+const useProgressiveChildren = (children: React.ReactNode) => {
+  const items = React.Children.toArray(children);
+  const total = items.length;
+  const big = total > PROGRESSIVE_FROM;
+  // A different list (another page, filter, sort) starts again from the top;
+  // a re-render of the same list (e.g. ticking a checkbox) keeps what is shown.
+  const firstKey = big ? String((items[0] as any)?.key ?? "") : "";
+  const signature = `${total}|${firstKey}`;
+  const [state, setState] = React.useState({ signature, shown: big ? FIRST_BATCH : total });
+  const shown = state.signature === signature ? state.shown : big ? FIRST_BATCH : total;
+
+  React.useEffect(() => {
+    if (state.signature !== signature) setState({ signature, shown: big ? FIRST_BATCH : total });
+  }, [signature, big, total, state.signature]);
+
+  React.useEffect(() => {
+    if (!big || shown >= total) return;
+    const id = window.setTimeout(() => {
+      setState((s) => (s.signature === signature ? { signature, shown: Math.min(total, s.shown + NEXT_BATCH) } : s));
+    }, 16);
+    return () => window.clearTimeout(id);
+  }, [big, shown, total, signature]);
+
+  return big ? items.slice(0, shown) : children;
+};
+
 const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tbody ref={ref} className={cn("text-foreground [&_tr:last-child]:border-0", className)} {...props} />
-  ),
+  ({ className, children, ...props }, ref) => {
+    const rows = useProgressiveChildren(children);
+    return (
+      <tbody ref={ref} className={cn("text-foreground [&_tr:last-child]:border-0", className)} {...props}>
+        {rows}
+      </tbody>
+    );
+  },
 );
 TableBody.displayName = "TableBody";
 

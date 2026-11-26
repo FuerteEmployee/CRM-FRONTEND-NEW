@@ -108,7 +108,12 @@ const Reports = () => {
     ],
   });
   const isAnyLoading = results.some((r) => r.isLoading);
-  const failed = results.filter((r) => r.isError).length;
+  // A module the user has no permission for (403) is hidden, not shown as 0 —
+  // otherwise "0 invoices" would look like real numbers.
+  const isForbidden = (e: any) => e?.status === 403 || e?.response?.status === 403;
+  const allowed = (i: number) => !isForbidden(results[i].error);
+  const failed = results.filter((r) => r.isError && !isForbidden(r.error)).length;
+  const hiddenCount = results.slice(0, 13).filter((r) => isForbidden(r.error)).length;
 
   // ─── Period filter: each module by its own date ───
   const start = periodStart(period);
@@ -161,29 +166,30 @@ const Reports = () => {
   const activeCustomers = customers.filter((c: any) => c.active !== false && c.active !== 0).length;
 
   const summaryKPIs = [
-    { label: "Total Revenue", value: money(totalRevenue), color: "text-primary" },
-    { label: "Active Projects", value: `${activeProjects} / ${projects.length}`, color: "text-emerald-500" },
-    { label: "Open Invoices", value: String(unpaidInvoices), color: "text-amber-500" },
-    { label: "Total Customers", value: String(customers.length), color: "text-blue-500" },
-    { label: "Leads Converted", value: `${convertedLeads} / ${leads.length}`, color: "text-violet-500" },
-    { label: "Tasks Completed", value: `${completedTasks} / ${tasks.length}`, color: "text-emerald-500" },
-  ];
+    { i: 1, label: "Total Revenue", value: money(totalRevenue), color: "text-primary" },
+    { i: 8, label: "Active Projects", value: `${activeProjects} / ${projects.length}`, color: "text-emerald-500" },
+    { i: 1, label: "Open Invoices", value: String(unpaidInvoices), color: "text-amber-500" },
+    { i: 0, label: "Total Customers", value: String(customers.length), color: "text-blue-500" },
+    { i: 9, label: "Leads Converted", value: `${convertedLeads} / ${leads.length}`, color: "text-violet-500" },
+    { i: 7, label: "Tasks Completed", value: `${completedTasks} / ${tasks.length}`, color: "text-emerald-500" },
+  ].filter((k) => allowed(k.i));
 
-  const masterTableData = [
-    { module: "Invoices", total: liveInvoices.length, amount: money(totalRevenue), posKey: "Paid", posVal: paidInvoices, negKey: "Unpaid", negVal: unpaidInvoices },
-    { module: "Proposals", total: proposals.length, amount: money(proposals.reduce((s: number, p: any) => s + num(p.total), 0)), posKey: "Accepted", posVal: acceptedProposals, negKey: "Other", negVal: proposals.length - acceptedProposals },
-    { module: "Estimates", total: estimates.length, amount: money(estimates.reduce((s: number, e: any) => s + num(e.total), 0)), posKey: "Accepted", posVal: acceptedEstimates, negKey: "Other", negVal: estimates.length - acceptedEstimates },
-    { module: "Payments", total: payments.length, amount: money(totalPaymentsAmt), posKey: "Received", posVal: payments.length, negKey: "—", negVal: 0 },
-    { module: "Credit Notes", total: creditNotes.length, amount: money(totalCNAmt), posKey: "Closed", posVal: creditNotes.length - openCN, negKey: "Open", negVal: openCN },
-    { module: "Expenses", total: expenses.length, amount: money(totalExpenseAmt), posKey: "Billable", posVal: billableExpenses, negKey: "Non-billable", negVal: expenses.length - billableExpenses },
-    { module: "Projects", total: projects.length, amount: "—", posKey: "Finished", posVal: finishedProjects, negKey: "In Progress", negVal: activeProjects },
-    { module: "Tasks", total: tasks.length, amount: "—", posKey: "Completed", posVal: completedTasks, negKey: "Pending", negVal: tasks.length - completedTasks },
-    { module: "Support Tickets", total: tickets.length, amount: "—", posKey: "Resolved", posVal: resolvedTickets, negKey: "Open", negVal: openTickets },
-    { module: "Leads", total: leads.length, amount: "—", posKey: "Converted", posVal: convertedLeads, negKey: "Not converted", negVal: leads.length - convertedLeads },
-    { module: "Subscriptions", total: subscriptions.length, amount: "—", posKey: "Active", posVal: activeSubscriptions, negKey: "Inactive", negVal: subscriptions.length - activeSubscriptions },
-    { module: "Contracts", total: contracts.length, amount: money(contracts.reduce((s: number, c: any) => s + num(c.contract_value), 0)), posKey: "Signed", posVal: signedContracts, negKey: "Not signed", negVal: contracts.length - signedContracts },
-    { module: "Customers", total: customers.length, amount: "—", posKey: "Active", posVal: activeCustomers, negKey: "Inactive", negVal: customers.length - activeCustomers },
-  ];
+  // `i` = which query above the row is counted from (hidden without permission).
+  const masterTableData = ([
+    { i: 1, module: "Invoices", total: liveInvoices.length, amount: money(totalRevenue), posKey: "Paid", posVal: paidInvoices, negKey: "Unpaid", negVal: unpaidInvoices },
+    { i: 2, module: "Proposals", total: proposals.length, amount: money(proposals.reduce((s: number, p: any) => s + num(p.total), 0)), posKey: "Accepted", posVal: acceptedProposals, negKey: "Other", negVal: proposals.length - acceptedProposals },
+    { i: 12, module: "Estimates", total: estimates.length, amount: money(estimates.reduce((s: number, e: any) => s + num(e.total), 0)), posKey: "Accepted", posVal: acceptedEstimates, negKey: "Other", negVal: estimates.length - acceptedEstimates },
+    { i: 3, module: "Payments", total: payments.length, amount: money(totalPaymentsAmt), posKey: "Received", posVal: payments.length, negKey: "—", negVal: 0 },
+    { i: 5, module: "Credit Notes", total: creditNotes.length, amount: money(totalCNAmt), posKey: "Closed", posVal: creditNotes.length - openCN, negKey: "Open", negVal: openCN },
+    { i: 4, module: "Expenses", total: expenses.length, amount: money(totalExpenseAmt), posKey: "Billable", posVal: billableExpenses, negKey: "Non-billable", negVal: expenses.length - billableExpenses },
+    { i: 8, module: "Projects", total: projects.length, amount: "—", posKey: "Finished", posVal: finishedProjects, negKey: "In Progress", negVal: activeProjects },
+    { i: 7, module: "Tasks", total: tasks.length, amount: "—", posKey: "Completed", posVal: completedTasks, negKey: "Pending", negVal: tasks.length - completedTasks },
+    { i: 10, module: "Support Tickets", total: tickets.length, amount: "—", posKey: "Resolved", posVal: resolvedTickets, negKey: "Open", negVal: openTickets },
+    { i: 9, module: "Leads", total: leads.length, amount: "—", posKey: "Converted", posVal: convertedLeads, negKey: "Not converted", negVal: leads.length - convertedLeads },
+    { i: 6, module: "Subscriptions", total: subscriptions.length, amount: "—", posKey: "Active", posVal: activeSubscriptions, negKey: "Inactive", negVal: subscriptions.length - activeSubscriptions },
+    { i: 11, module: "Contracts", total: contracts.length, amount: money(contracts.reduce((s: number, c: any) => s + num(c.contract_value), 0)), posKey: "Signed", posVal: signedContracts, negKey: "Not signed", negVal: contracts.length - signedContracts },
+    { i: 0, module: "Customers", total: customers.length, amount: "—", posKey: "Active", posVal: activeCustomers, negKey: "Inactive", negVal: customers.length - activeCustomers },
+  ] as any[]).filter((r) => allowed(r.i));
 
   // ─── Revenue by month: invoiced vs collected vs expenses ───
   const revenueByMonth = useMemo(() => {
@@ -287,7 +293,11 @@ const Reports = () => {
     headers: ["Staff", "Tasks Assigned", "Completed", "Open", "Overdue", "Completion %", "Hours Logged"],
     rows: teamRows.map((r: any) => [r.name, r.assigned, r.completed, r.open, r.overdue, `${r.rate}%`, r.hours]),
   };
-  const sheets = [masterSheet, revenueSheet, projectSheet, teamSheet];
+  // Revenue compares money in and out: it needs Invoices, Payments and Expenses.
+  const canRevenue = allowed(1) && allowed(3) && allowed(4);
+  const canProjects = allowed(8);
+  const canTeam = allowed(7);
+  const sheets = [masterSheet, canRevenue && revenueSheet, canProjects && projectSheet, canTeam && teamSheet].filter(Boolean) as typeof masterSheet[];
   const sheetForTab: Record<string, typeof masterSheet> = { master: masterSheet, revenue: revenueSheet, projects: projectSheet, team: teamSheet };
 
   const buildPdf = async () => {
@@ -309,13 +319,13 @@ const Reports = () => {
 
     // KPI boxes
     const kpis = [
-      ["Total Revenue", pdfText(money(totalRevenue))],
-      ["Collected", pdfText(money(totalPaymentsAmt))],
-      ["Outstanding", pdfText(money(outstanding))],
-      ["Expenses", pdfText(money(totalExpenseAmt))],
-      ["Active Projects", `${activeProjects} / ${projects.length}`],
-      ["Tasks Completed", `${completedTasks} / ${tasks.length}`],
-    ];
+      allowed(1) && ["Total Revenue", pdfText(money(totalRevenue))],
+      allowed(3) && ["Collected", pdfText(money(totalPaymentsAmt))],
+      allowed(1) && allowed(3) && ["Outstanding", pdfText(money(outstanding))],
+      allowed(4) && ["Expenses", pdfText(money(totalExpenseAmt))],
+      allowed(8) && ["Active Projects", `${activeProjects} / ${projects.length}`],
+      allowed(7) && ["Tasks Completed", `${completedTasks} / ${tasks.length}`],
+    ].filter(Boolean) as string[][];
     const boxW = (pageW - 80 - 5 * 8) / 6;
     kpis.forEach(([label, value], i) => {
       const x = 40 + i * (boxW + 8);
@@ -433,24 +443,29 @@ const Reports = () => {
 
         {failed > 0 && !isAnyLoading && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">
-            {failed} module(s) could not be loaded (no permission or server error) — their numbers show as 0.
+            {failed} module(s) could not be loaded (server error) — their numbers show as 0.
+          </div>
+        )}
+        {hiddenCount > 0 && !isAnyLoading && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-medium text-blue-800">
+            {hiddenCount} module(s) are hidden because your role has no permission for them. Numbers with "own" permission count only your own records.
           </div>
         )}
 
         {/* Top KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-primary/10"><IndianRupee className="h-5 w-5 text-primary" /></div><div><p className="text-2xl font-bold">{money(totalRevenue)}</p><p className="text-xs text-muted-foreground">Total Revenue</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-500/10"><TrendingUp className="h-5 w-5 text-emerald-500" /></div><div><p className="text-2xl font-bold">{projects.length}</p><p className="text-xs text-muted-foreground">Total Projects</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-blue-500/10"><FileText className="h-5 w-5 text-blue-500" /></div><div><p className="text-2xl font-bold">{liveInvoices.length}</p><p className="text-xs text-muted-foreground">Total Invoices</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-violet-500/10"><Users className="h-5 w-5 text-violet-500" /></div><div><p className="text-2xl font-bold">{customers.length}</p><p className="text-xs text-muted-foreground">Customers</p></div></CardContent></Card>
+          {allowed(1) && <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-primary/10"><IndianRupee className="h-5 w-5 text-primary" /></div><div><p className="text-2xl font-bold">{money(totalRevenue)}</p><p className="text-xs text-muted-foreground">Total Revenue</p></div></CardContent></Card>}
+          {allowed(8) && <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-500/10"><TrendingUp className="h-5 w-5 text-emerald-500" /></div><div><p className="text-2xl font-bold">{projects.length}</p><p className="text-xs text-muted-foreground">Total Projects</p></div></CardContent></Card>}
+          {allowed(1) && <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-blue-500/10"><FileText className="h-5 w-5 text-blue-500" /></div><div><p className="text-2xl font-bold">{liveInvoices.length}</p><p className="text-xs text-muted-foreground">Total Invoices</p></div></CardContent></Card>}
+          {allowed(0) && <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-violet-500/10"><Users className="h-5 w-5 text-violet-500" /></div><div><p className="text-2xl font-bold">{customers.length}</p><p className="text-xs text-muted-foreground">Customers</p></div></CardContent></Card>}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="master" className="gap-1.5"><LayoutDashboard className="h-3.5 w-3.5" />Master Dashboard</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="team">Team Performance</TabsTrigger>
+            {canRevenue && <TabsTrigger value="revenue">Revenue</TabsTrigger>}
+            {canProjects && <TabsTrigger value="projects">Projects</TabsTrigger>}
+            {canTeam && <TabsTrigger value="team">Team Performance</TabsTrigger>}
           </TabsList>
 
           {/* ─── MASTER DASHBOARD ─── */}
@@ -532,7 +547,7 @@ const Reports = () => {
           </TabsContent>
 
           {/* ─── REVENUE ─── */}
-          <TabsContent value="revenue" className="space-y-4">
+          {canRevenue && <TabsContent value="revenue" className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 ["Invoiced", money(totalRevenue), "text-primary"],
@@ -580,10 +595,10 @@ const Reports = () => {
                 </Table>
               </Card>
             )}
-          </TabsContent>
+          </TabsContent>}
 
           {/* ─── PROJECTS ─── */}
-          <TabsContent value="projects" className="space-y-4">
+          {canProjects && <TabsContent value="projects" className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               {PROJECT_STATUSES.map((s) => (
                 <Card key={s.id}><CardContent className="p-4"><p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{s.label}</p><p className="text-xl font-black" style={{ color: s.fill }}>{projectCount(s.id)}</p></CardContent></Card>
@@ -633,10 +648,10 @@ const Reports = () => {
                 </div>
               </Card>
             )}
-          </TabsContent>
+          </TabsContent>}
 
           {/* ─── TEAM PERFORMANCE ─── */}
-          <TabsContent value="team" className="space-y-4">
+          {canTeam && <TabsContent value="team" className="space-y-4">
             <Card>
               <CardHeader><CardTitle>Team Performance</CardTitle></CardHeader>
               <CardContent>
@@ -676,7 +691,7 @@ const Reports = () => {
                 </Table>
               </Card>
             )}
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </div>
     </DashboardLayout>

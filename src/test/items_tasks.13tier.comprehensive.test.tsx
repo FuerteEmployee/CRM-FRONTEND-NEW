@@ -338,7 +338,7 @@ describe("Master QA 13-Tier Audit: [ITEMS, TASKS] Modules", () => {
     });
 
     it("verifies sticky right-0 classes for multi-column tables", () => {
-      const stickyClass = "sticky right-0 bg-card/95 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40";
+      const stickyClass = "sticky right-0 bg-card z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40";
       expect(stickyClass).toContain("sticky");
       expect(stickyClass).toContain("right-0");
       expect(stickyClass).toContain("z-10");
