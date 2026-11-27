@@ -13,6 +13,19 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { timeEntryService } from "@/api/services/time_entry.service";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useQuery } from "@tanstack/react-query";
+import { projectService } from "@/api/services/project.service";
+import { taskService } from "@/api/services/task.service";
+import { staffService } from "@/api/services/staff.service";
+import { usePermissions } from "@/hooks/usePermissions";
+
+// Project / Task / Member are picked from the CRM's own lists and saved as ids,
+// so the time shows up in Reports (Staff Work, Project Work, Customer Work).
+// Older entries that were typed as free text still show their text.
+const OID = /^[0-9a-f]{24}$/i;
+const listOf = (d: any): any[] => (Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : []);
+const personName = (s: any) => (s ? `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email || "" : "");
 
 // Today as YYYY-MM-DD in the viewer's timezone (toISOString would give the UTC day).
 const localToday = () => {
@@ -32,6 +45,28 @@ const TimeTracking = () => {
   const [viewItem, setViewItem] = useState<any | null>(null);
   const [editItem, setEditItem] = useState<any | null>(null);
   const { toast } = useToast();
+  const { user } = usePermissions();
+  const me = String(user?._id || "");
+
+  const { data: projectsRaw } = useQuery({ queryKey: ["time-tracking", "projects"], queryFn: () => projectService.getAll() });
+  const { data: tasksRaw } = useQuery({ queryKey: ["time-tracking", "tasks"], queryFn: () => taskService.getAll() });
+  const { data: staffRaw } = useQuery({ queryKey: ["staff", "assignable"], queryFn: () => staffService.getAssignable() });
+  const projectList = listOf(projectsRaw);
+  const taskList = listOf(tasksRaw);
+  const staffList = listOf(staffRaw);
+  const projectById = new Map(projectList.map((p: any) => [String(p._id), p]));
+  const taskById = new Map(taskList.map((t: any) => [String(t._id), t]));
+  const staffById = new Map(staffList.map((s: any) => [String(s._id), s]));
+  const projectIdOfTask = (t: any) => (t?.rel_type === "project" && t.rel_id ? String(typeof t.rel_id === "object" ? t.rel_id._id : t.rel_id) : "");
+  const projectOptions = projectList.map((p: any) => ({ value: String(p._id), label: p.name }));
+  const taskOptionsFor = (projectId: string) =>
+    taskList.filter((t: any) => !projectId || projectIdOfTask(t) === projectId).map((t: any) => ({ value: String(t._id), label: t.name }));
+  const staffOptions = staffList.map((s: any) => ({ value: String(s._id), label: personName(s) }));
+  // Names for an entry (id → name; old free-text entries keep their text).
+  const taskName = (v: any) => (OID.test(String(v || "")) ? taskById.get(String(v))?.name || "Task (not visible)" : v || "-");
+  const projectIdOf = (e: any) => (OID.test(String(e.project || "")) ? String(e.project) : projectIdOfTask(taskById.get(String(e.task))));
+  const projectName = (e: any) => { const id = projectIdOf(e); return id ? projectById.get(id)?.name || "-" : e.project || "-"; };
+  const memberName = (e: any) => (OID.test(String(e.member || "")) ? personName(staffById.get(String(e.member))) || "-" : e.member || personName(staffById.get(String(e.created_by))) || "-");
 
   const [formData, setFormData] = useState({
     task: "",
@@ -62,14 +97,14 @@ const TimeTracking = () => {
   const closeAddForm = () => {
     setIsAddOpen(false);
     setFormData({
-      task: "", project: "", member: "", hours: "", billable: "no", date: localToday()
+      task: "", project: "", member: me, hours: "", billable: "no", date: localToday()
     });
   };
 
   // Same rules for Log and Edit (the backend enforces them too).
   const validateEntry = (entry: { task?: string; hours?: string | number; date?: string }) => {
     if (!String(entry.task || "").trim() || entry.hours === "" || entry.hours == null || !entry.date) {
-      return "Please fill required fields";
+      return "Please choose the task and fill hours and date";
     }
     const hours = Number(entry.hours);
     if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
@@ -88,6 +123,8 @@ const TimeTracking = () => {
       const payload = {
         ...formData,
         task: formData.task.trim(),
+        member: formData.member || me,
+        project: formData.project || projectIdOfTask(taskById.get(formData.task)) || undefined,
         hours: Number(formData.hours),
         billable: formData.billable === "yes"
       };
@@ -138,15 +175,16 @@ const TimeTracking = () => {
   const projectKey = (p?: string) => String(p || "").trim().toLowerCase();
   const projectNames = new Map<string, string>();
   entries.forEach((t) => {
-    const key = projectKey(t.project);
-    if (key && !projectNames.has(key)) projectNames.set(key, String(t.project).trim());
+    const name = projectName(t);
+    const key = projectKey(name === "-" ? "" : name);
+    if (key && !projectNames.has(key)) projectNames.set(key, name);
   });
   const projects = ["all", ...projectNames.keys()];
 
   const filtered = entries.filter((t) => {
     const q = search.trim().toLowerCase();
-    const matchesSearch = !q || [t.task, t.project, t.member].some((v) => String(v || "").toLowerCase().includes(q));
-    const matchesProject = projectFilter === "all" || projectKey(t.project) === projectFilter;
+    const matchesSearch = !q || [taskName(t.task), projectName(t), memberName(t)].some((v) => String(v || "").toLowerCase().includes(q));
+    const matchesProject = projectFilter === "all" || projectKey(projectName(t)) === projectFilter;
     return matchesSearch && matchesProject;
   });
 
@@ -175,10 +213,14 @@ const TimeTracking = () => {
               <DialogHeader><DialogTitle>Log Time Entry</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2"><Label>Project</Label>
-                   <Input placeholder="Project Name" value={formData.project} onChange={e => setFormData({...formData, project: e.target.value})} />
+                  <SearchableSelect options={projectOptions} value={formData.project} placeholder="Any project" onValueChange={(v) => setFormData({ ...formData, project: v || "", task: "" })} />
                 </div>
-                <div className="space-y-2"><Label>Task *</Label><Input placeholder="What did you work on?" value={formData.task} onChange={e => setFormData({...formData, task: e.target.value})} /></div>
-                <div className="space-y-2"><Label>Member</Label><Input placeholder="Team member name" value={formData.member} onChange={e => setFormData({...formData, member: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Task *</Label>
+                  <SearchableSelect options={taskOptionsFor(formData.project)} value={formData.task} placeholder="What did you work on?" onValueChange={(v) => setFormData({ ...formData, task: v || "", project: formData.project || projectIdOfTask(taskById.get(String(v))) })} />
+                </div>
+                <div className="space-y-2"><Label>Member</Label>
+                  <SearchableSelect options={staffOptions} value={formData.member || me} placeholder="Who did the work" onValueChange={(v) => setFormData({ ...formData, member: v || me })} />
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Hours *</Label><Input type="number" placeholder="0" step="0.5" value={formData.hours} onChange={e => setFormData({...formData, hours: e.target.value})} /></div>
                   <div className="space-y-2"><Label>Date *</Label><Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /></div>
@@ -224,9 +266,9 @@ const TimeTracking = () => {
                     <TableEmpty colSpan={7}>No entries found.</TableEmpty>
                   ) : filtered.map((entry) => (
                     <TableRow key={entry._id}>
-                      <TableCell className="font-medium">{entry.task}</TableCell>
-                      <TableCell className="text-muted-foreground">{entry.project || "-"}</TableCell>
-                      <TableCell className="text-muted-foreground">{entry.member || "-"}</TableCell>
+                      <TableCell className="font-medium">{taskName(entry.task)}</TableCell>
+                      <TableCell className="text-muted-foreground">{projectName(entry)}</TableCell>
+                      <TableCell className="text-muted-foreground">{memberName(entry)}</TableCell>
                       <TableCell>{entry.hours}h</TableCell>
                       <TableCell><Badge variant="outline" className={entry.billable ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>{entry.billable ? "Yes" : "No"}</Badge></TableCell>
                       <TableCell className="text-muted-foreground">{entry.date ? formatDate(entry.date) : "-"}</TableCell>
@@ -254,9 +296,9 @@ const TimeTracking = () => {
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
         <DialogContent><DialogHeader><DialogTitle>Time Entry Details</DialogTitle></DialogHeader>
           {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><p className="text-xs text-muted-foreground">Task</p><p className="text-sm font-medium">{viewItem.task}</p></div>
-            <div><p className="text-xs text-muted-foreground">Project</p><p className="text-sm">{viewItem.project || "-"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Member</p><p className="text-sm">{viewItem.member || "-"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Task</p><p className="text-sm font-medium">{taskName(viewItem.task)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Project</p><p className="text-sm">{projectName(viewItem)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Member</p><p className="text-sm">{memberName(viewItem)}</p></div>
             <div><p className="text-xs text-muted-foreground">Hours</p><p className="text-sm">{viewItem.hours}h</p></div>
             <div><p className="text-xs text-muted-foreground">Billable</p><p className="text-sm">{viewItem.billable ? "Yes" : "No"}</p></div>
             <div><p className="text-xs text-muted-foreground">Date</p><p className="text-sm">{viewItem.date ? formatDate(viewItem.date) : "-"}</p></div>
@@ -267,9 +309,18 @@ const TimeTracking = () => {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent><DialogHeader><DialogTitle>Edit Time Entry</DialogTitle></DialogHeader>
           {editItem && (<div className="space-y-4 pt-2">
-            <div className="space-y-2"><Label>Task *</Label><Input value={editItem.task || ""} onChange={e => setEditItem({...editItem, task: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Project</Label><Input value={editItem.project || ""} onChange={e => setEditItem({...editItem, project: e.target.value})} /></div>
-            <div className="space-y-2"><Label>Member</Label><Input value={editItem.member || ""} onChange={e => setEditItem({...editItem, member: e.target.value})} /></div>
+            {!OID.test(String(editItem.task || "")) && editItem.task && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">Typed before: “{editItem.task}”{editItem.project && !OID.test(String(editItem.project)) ? ` · ${editItem.project}` : ""}. Pick the real task so it counts in the reports.</p>
+            )}
+            <div className="space-y-2"><Label>Project</Label>
+              <SearchableSelect options={projectOptions} value={OID.test(String(editItem.project || "")) ? editItem.project : ""} placeholder="Any project" onValueChange={(v) => setEditItem({ ...editItem, project: v || "", task: OID.test(String(editItem.task || "")) && v && projectIdOfTask(taskById.get(String(editItem.task))) !== v ? "" : editItem.task })} />
+            </div>
+            <div className="space-y-2"><Label>Task *</Label>
+              <SearchableSelect options={taskOptionsFor(OID.test(String(editItem.project || "")) ? editItem.project : "")} value={OID.test(String(editItem.task || "")) ? editItem.task : ""} placeholder="What did you work on?" onValueChange={(v) => setEditItem({ ...editItem, task: v || editItem.task, project: OID.test(String(editItem.project || "")) ? editItem.project : projectIdOfTask(taskById.get(String(v))) || editItem.project })} />
+            </div>
+            <div className="space-y-2"><Label>Member</Label>
+              <SearchableSelect options={staffOptions} value={OID.test(String(editItem.member || "")) ? editItem.member : ""} placeholder={editItem.member && !OID.test(String(editItem.member)) ? editItem.member : "Who did the work"} onValueChange={(v) => setEditItem({ ...editItem, member: v || editItem.member })} />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Hours *</Label><Input type="number" step="0.5" value={editItem.hours || ""} onChange={e => setEditItem({...editItem, hours: e.target.value})} /></div>
               <div className="space-y-2"><Label>Date *</Label><Input type="date" value={editItem.date || ""} onChange={e => setEditItem({...editItem, date: e.target.value})} /></div>

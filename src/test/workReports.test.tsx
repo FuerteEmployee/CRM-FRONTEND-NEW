@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
     getWorkOverview: vi.fn(),
     logoutCheck: vi.fn(),
     completeMyTask: vi.fn(),
+    workStatus: vi.fn(),
   },
   exported: [] as any[],
 }));
@@ -62,6 +63,7 @@ beforeEach(() => {
   h.isAdmin = true;
   h.exported = [];
   Object.values(h.svc).forEach((f) => f.mockReset());
+  h.svc.workStatus.mockResolvedValue({ session: null });
 });
 afterEach(cleanup);
 
@@ -357,7 +359,8 @@ describe("logout guard", () => {
     expect(screen.getByRole("button", { name: /Log out now/ })).toBeEnabled();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Log out now/ })); });
     await waitFor(() => expect(out).toHaveBeenCalledTimes(1));
-    expect(h.svc.logoutCheck).toHaveBeenCalledTimes(2); // checked again before leaving
+    // blocked: check + tell admins; Log out now: check again, then record the logout
+    expect(h.svc.logoutCheck.mock.calls.map((c) => c[0])).toEqual([false, true, false, true]);
   });
   it("'Stay logged in' closes the popup without logging out; Open goes to the task", async () => {
     h.svc.logoutCheck.mockResolvedValue({ blocked: true, pending: [{ _id: "t9", name: "Call client", duedate: "2026-11-26", overdue: false, status: 1, statusLabel: "Not Started", project: "" }] });

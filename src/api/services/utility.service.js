@@ -66,4 +66,14 @@ export const utilityService = {
   // attempt=true when the person pressed Logout (admins are told if blocked).
   logoutCheck: (attempt) => apiClient.get(`/work/logout-check${attempt ? '?attempt=1' : ''}`),
   completeMyTask: (id) => apiClient.post(`/work/tasks/${id}/complete`),
+
+  // Work-day timer (top bar) + server-side task timer
+  workStatus: () => apiClient.get('/work/status'),
+  workStart: () => apiClient.post('/work/start'),
+  workPause: () => apiClient.post('/work/pause'),
+  workResume: () => apiClient.post('/work/resume'),
+  workStop: (reason) => apiClient.post('/work/stop', reason ? { reason } : {}),
+  workHeartbeat: () => apiClient.post('/work/heartbeat'),
+  taskTimerStart: (taskId) => apiClient.post('/work/task-timer/start', { taskId }),
+  taskTimerStop: () => apiClient.post('/work/task-timer/stop'),
 };

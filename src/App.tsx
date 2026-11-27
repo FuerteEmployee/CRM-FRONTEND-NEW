@@ -100,6 +100,8 @@ import Bookmarks from "./pages/Bookmarks";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles, ReportPurchase, ReportGate } from "./pages/ReportPages";
 import { ReportProjectWork, ReportStaffWork, ReportCustomerWork } from "./pages/WorkReports";
 import { PendingTasksLogoutDialog } from "./components/layout/PendingTasksLogoutDialog";
+import { WorkStartPrompt, WorkLogoutDialog } from "./components/layout/WorkTimerWidget";
+import { WorkTimerProvider } from "./context/WorkTimerContext";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
@@ -480,6 +482,8 @@ const MainApp = () => {
       <CssAreaSync />
       <TourContinuation />
       <PendingTasksLogoutDialog />
+      <WorkStartPrompt />
+      <WorkLogoutDialog />
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
@@ -573,11 +577,14 @@ const App = () => (
             <NotificationProvider>
               {/* Chat voice/video calls: incoming-call popup + call window on every page */}
               <CallProvider>
-                <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <MainApp />
-                </TooltipProvider>
+                {/* Work-day timer + task timer (top bar), kept on the server */}
+                <WorkTimerProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <MainApp />
+                  </TooltipProvider>
+                </WorkTimerProvider>
               </CallProvider>
             </NotificationProvider>
           </ThemeStyleProvider>

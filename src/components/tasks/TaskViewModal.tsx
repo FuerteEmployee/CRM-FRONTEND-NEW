@@ -46,6 +46,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
+import { useTick, useWorkTimer } from "@/context/WorkTimerContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 import { TaskVoiceNotes, isAudioFile } from "@/components/tasks/TaskVoiceNotes";
@@ -110,14 +111,24 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
   const [checklistTitle, setChecklistTitle] = useState("");
   const [checklistAssignedTo, setChecklistAssignedTo] = useState("");
 
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  // Task timer: real tasks use the server timer (context/WorkTimerContext) so it
+  // keeps running when this popup closes or the page reloads, and shows in the
+  // top bar. To-do items (not real tasks) keep the old popup-only timer.
+  const work = useWorkTimer();
+  const [localTimerRunning, setIsTimerRunning] = useState(false);
   const { getSetting } = useSettings();
   // Setup > Settings > Tasks > "Modal Width Class".
   const modalWidthClass = ({ "modal-lg": "max-w-[1000px]", "modal-xl": "max-w-[1200px]", "modal-xxl": "max-w-[1400px]" } as Record<string, string>)[
     String(getSetting("taskModalWidthClass", "modal-lg") || "modal-lg").trim()
   ] || "max-w-[1000px]";
-  const [timerStartMs, setTimerStartMs] = useState<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [localStartMs, setTimerStartMs] = useState<number | null>(null);
+  const [localElapsed, setElapsedSeconds] = useState(0);
+  const serverTimerHere = !!task && !task.isTodo && work.enabled && work.status?.taskTimer?.taskId === String(task?._id);
+  const useServerTimer = !!task && !task.isTodo && work.enabled;
+  const isTimerRunning = useServerTimer ? serverTimerHere : localTimerRunning;
+  const timerStartMs = useServerTimer ? (serverTimerHere ? new Date(work.status!.taskTimer!.start).getTime() : null) : localStartMs;
+  useTick(useServerTimer && serverTimerHere);
+  const elapsedSeconds = useServerTimer ? (timerStartMs ? Math.max(0, Math.floor((work.now() - timerStartMs) / 1000)) : 0) : localElapsed;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: timesheets = [] } = useQuery({
@@ -210,13 +221,13 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
 
   useEffect(() => {
     let interval: any;
-    if (isTimerRunning && timerStartMs) {
+    if (!useServerTimer && isTimerRunning && timerStartMs) {
       interval = setInterval(() => {
         setElapsedSeconds(Math.floor((Date.now() - timerStartMs) / 1000));
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timerStartMs]);
+  }, [useServerTimer, isTimerRunning, timerStartMs]);
 
   // Drop unsaved description/comment/checklist drafts when the modal is (re)opened or switches task.
   useEffect(() => {
@@ -350,6 +361,26 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
   };
 
   const handleToggleTimer = () => {
+    if (useServerTimer) {
+      const on = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+      if (isTimerRunning) {
+        work.stopTask().then((r: any) => {
+          const h = Number(r?.entry?.hours || 0);
+          toast({ title: "Timer Stopped", description: h > 0 ? `Time entry saved: ${h.toFixed(2)} hours` : "Less than the rounding step — nothing saved" });
+          queryClient.invalidateQueries({ queryKey: ["timesheets", task._id] });
+        }).catch((err: any) => toast({ title: "Error", description: err?.response?.data?.message || err.message, variant: "destructive" }));
+      } else {
+        const other = work.status?.taskTimer;
+        work.startTask(String(task._id)).then(() => {
+          toast({ title: "Timer started", description: other ? `"${other.taskName}" timer was stopped and saved.` : "It keeps running in the top bar." });
+          if (other) queryClient.invalidateQueries({ queryKey: ["timesheets", other.taskId] });
+        }).catch((err: any) => toast({ title: "Error", description: err?.response?.data?.message || err.message, variant: "destructive" }));
+        if (on(getSetting("taskStatusInProgressOnTimer", false)) && Number(task.status) !== 2 && Number(task.status) !== 5) {
+          updateMutation.mutate({ id: task._id, isTodo: false, data: { status: 2 } });
+        }
+      }
+      return;
+    }
     if (isTimerRunning) {
       setIsTimerRunning(false);
       const hours = roundTimerHours(elapsedSeconds);

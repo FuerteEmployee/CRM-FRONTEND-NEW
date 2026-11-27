@@ -65,6 +65,7 @@ import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 import { clearThemeFromDom } from "@/lib/themeUtils";
 import { isSuperAdminEnabled } from "@/lib/panelBranding";
 import { guardedLogout } from "@/lib/logoutGuard";
+import { WorkTimerWidget } from "@/components/layout/WorkTimerWidget";
 
 
 export function TopNavbar() {
@@ -351,6 +352,10 @@ export function TopNavbar() {
 
       {/* Quick Action Icons */}
       <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
+        {/* Work-day timer: Start Work / running clock (context/WorkTimerContext) */}
+        <div className="mr-1">
+          <WorkTimerWidget />
+        </div>
         {/* Settings - visible on md and up with text, always icon */}
         <NavLink to={`${base}/setup`} className="hidden sm:inline-flex">
           <Button

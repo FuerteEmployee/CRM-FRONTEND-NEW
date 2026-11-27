@@ -447,13 +447,14 @@ export const ReportStaffWork = () => {
     retry: (n: number, e: any) => !isForbidden(e) && n < 1,
   });
   const data: any = q.data || {};
-  const allStaffRows: any[] = toList(data.staff);
+  // workDay = the work-day timer (Start / Stop Work); older servers may not send it
+  const allStaffRows: any[] = toList(data.staff).map((r: any) => ({ workProgress: 0, ...r, workDay: r.workDay || { workedSeconds: 0, breakSeconds: 0, firstStart: null, lastEnd: null, running: false, autoStopped: 0, sessions: [] } }));
   const rows = allStaffRows
     .filter((r) => staffId === "all" || r.staffId === staffId)
     .filter((r) => show === "all" || (show === "pending" ? r.pendingCount > 0 : r.noWork))
     .filter((r) => !search.trim() || [r.name, r.email, ...r.projects, ...r.entries.map((e: any) => e.task), ...r.completed.map((c: any) => c.task), ...r.pending.map((x: any) => x.task)].join(" ").toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => Number(a.noWork) - Number(b.noWork) || b.hours - a.hours || b.completedCount - a.completedCount);
-  const sum = (k: string) => rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+  const sum = (k: string) => rows.reduce((t, r) => t + (Number(k === "workSec" ? r.workDay?.workedSeconds : r[k]) || 0), 0);
   const working = rows.filter((r) => !r.noWork).length;
   const days = data.days || 1;
   const singleDay = days <= 1;
@@ -474,9 +475,9 @@ export const ReportStaffWork = () => {
       sections: [
         {
           title: "Summary by Staff",
-          headers: ["Staff", "Hours (h:m)", `Target (${data.hoursPerDay || 8}h/day)`, "Tasks Completed", "Due / Overdue Now", "First Login", "Last Logout", "First Activity", "Last Activity", "Projects"],
-          rows: rows.map((r) => [r.name, hm(r.hours), `${r.targetHours}h`, r.completedCount, r.pendingCount, dateTime(r.firstLogin), dateTime(r.lastLogout), dateTime(r.firstActivity), dateTime(r.lastActivity), r.projects.join(", ") || "-"]),
-          footer: ["Total", hm(sum("hours")), "", sum("completedCount"), sum("pendingCount"), "", "", "", "", ""],
+          headers: ["Staff", "Work Time (h:m)", "Break (h:m)", "Work Start", "Work End", "Task Time (h:m)", `Target (${data.hoursPerDay || 8}h/day)`, "Tasks Completed", "Due / Overdue Now", "First Login", "Last Logout", "Projects"],
+          rows: rows.map((r) => [r.name, hm(r.workDay.workedSeconds / 3600), hm(r.workDay.breakSeconds / 3600), dateTime(r.workDay.firstStart), r.workDay.running ? "still working" : dateTime(r.workDay.lastEnd), hm(r.hours), `${r.targetHours}h`, r.completedCount, r.pendingCount, dateTime(r.firstLogin), dateTime(r.lastLogout), r.projects.join(", ") || "-"]),
+          footer: ["Total", hm(sum("workSec") / 3600), "", "", "", hm(sum("hours")), "", sum("completedCount"), sum("pendingCount"), "", "", ""],
         },
         {
           title: "Work Log (time on tasks)",
@@ -543,8 +544,9 @@ export const ReportStaffWork = () => {
 
         {isForbidden(q.error) ? null : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Kpi label="Staff" value={q.isLoading ? "…" : rows.length} />
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+              <Kpi label="Staff" value={q.isLoading ? "…" : rows.length} hint={`${data.summary?.workingNow || 0} working now · ${data.summary?.notStarted || 0} not started`} />
+              <Kpi label="Work Time" value={q.isLoading ? "…" : hm(sum("workSec") / 3600)} hint="Start Work … Stop Work, breaks taken out" tone="text-emerald-600" />
               <Kpi label="Worked" value={q.isLoading ? "…" : `${working} / ${rows.length}`} hint="logged time, completed a task or used the CRM" tone="text-emerald-600" />
               <Kpi label="Hours Logged" value={q.isLoading ? "…" : hm(sum("hours"))} hint="hours:minutes on task timers / timesheets" />
               <Kpi label="Tasks Completed" value={q.isLoading ? "…" : sum("completedCount")} />
@@ -580,7 +582,22 @@ export const ReportStaffWork = () => {
                           <span className="flex items-center gap-1.5 text-muted-foreground"><ListTodo className="h-3.5 w-3.5" />CRM actions: <b className="text-foreground">{r.actions}</b></span>
                         </div>
 
+                        <div className="rounded-lg border bg-muted/20 px-3 py-2 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className={`h-2 w-2 rounded-full ${r.workDay.running === "running" ? "bg-emerald-500 animate-pulse" : r.workDay.running === "paused" ? "bg-amber-500" : r.workDay.sessions.length ? "bg-slate-400" : "bg-red-400"}`} />
+                            {r.workDay.running === "running" ? "Working now" : r.workDay.running === "paused" ? "On a break" : r.workDay.sessions.length ? "Work stopped" : "Work not started"}
+                          </span>
+                          {r.workDay.sessions.length > 0 && (
+                            <>
+                              <span className="text-muted-foreground">{singleDay ? clockTime(r.workDay.firstStart) : dateTime(r.workDay.firstStart)} – {r.workDay.running ? "now" : singleDay ? clockTime(r.workDay.lastEnd) : dateTime(r.workDay.lastEnd)}</span>
+                              {r.workDay.breakSeconds > 0 && <span className="text-muted-foreground">break {hm(r.workDay.breakSeconds / 3600)}</span>}
+                              {r.workDay.autoStopped > 0 && <span className="text-amber-700" title="CRM was closed without Stop Work; the timer stopped at the last activity">auto-stopped</span>}
+                            </>
+                          )}
+                        </div>
+
                         <div className="space-y-3">
+                          <ProgressBar value={r.workProgress} label="Work time (Start Work … Stop Work)" sub={`${hm(r.workDay.workedSeconds / 3600)} of ${r.targetHours}h`} />
                           <ProgressBar value={r.hoursProgress} label="Time on tasks" sub={`${hm(r.hours)} of ${r.targetHours}h`} />
                           <ProgressBar value={r.taskProgress} label="Tasks" sub={`${r.completedCount} done · ${r.pendingCount} due/overdue`} tone={r.completedCount + r.pendingCount === 0 ? "bg-slate-300" : undefined} />
                         </div>
@@ -904,8 +921,8 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
       sections: [
         {
           title: "Staff — work done vs pending",
-          headers: ["Staff", "Progress", "Done / Total", "Pending", "Overdue", "Due Today", "Done in Period", "Hours (h:m)", "Active Projects", "Customers", "Last Active"],
-          rows: staff.map((r) => [r.name, `${r.progress}%`, `${r.completed} / ${r.total}`, r.open, r.overdue, r.dueToday, r.completedInPeriod, hm(r.hours), r.activeProjects, r.activeCustomers, dateTime(r.lastActivity)]),
+          headers: ["Staff", "Progress", "Done / Total", "Pending", "Overdue", "Due Today", "Done in Period", "Work Time (h:m)", "Task Time (h:m)", "Active Projects", "Customers", "Last Active"],
+          rows: staff.map((r) => [r.name, `${r.progress}%`, `${r.completed} / ${r.total}`, r.open, r.overdue, r.dueToday, r.completedInPeriod, hm(r.workHours || 0), hm(r.hours), r.activeProjects, r.activeCustomers, dateTime(r.lastActivity)]),
         },
         ...(data.access?.customers ? [{
           title: "Customers — work done vs pending",
@@ -935,7 +952,7 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
         <Kpi label="Overdue" value={q.isLoading ? "…" : s.tasksOverdue || 0} tone={s.tasksOverdue ? "text-red-600" : "text-foreground"} />
         <Kpi label="Due Today" value={q.isLoading ? "…" : s.tasksDueToday || 0} tone={s.tasksDueToday ? "text-amber-600" : "text-foreground"} />
         <Kpi label="Done in Period" value={q.isLoading ? "…" : s.completedInPeriod || 0} tone="text-emerald-600" />
-        <Kpi label="Hours Logged" value={q.isLoading ? "…" : hm(s.hours || 0)} hint="in period" />
+        <Kpi label="Work Time" value={q.isLoading ? "…" : hm(s.workHours || 0)} hint={`${s.workingNow || 0} working now · task time ${hm(s.hours || 0)}`} tone="text-emerald-600" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -964,22 +981,26 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {["Staff", "Progress", "Pending", "Overdue", "Due Today", "Done in Period", "Hours", "Projects", "Last Active", ""].map((h, i) => <TableHead key={i} className="text-xs whitespace-nowrap">{h}</TableHead>)}
+                    {["Staff", "Progress", "Pending", "Overdue", "Due Today", "Done in Period", "Work Time", "Task Time", "Projects", "Last Active", ""].map((h, i) => <TableHead key={i} className="text-xs whitespace-nowrap">{h}</TableHead>)}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {staff.length === 0 ? <TableEmpty colSpan={10}>No staff for the selected filters.</TableEmpty> : staff.map((r) => (
+                  {staff.length === 0 ? <TableEmpty colSpan={11}>No staff for the selected filters.</TableEmpty> : staff.map((r) => (
                     <TableRow key={r.staffId}>
                       <TableCell className="font-medium whitespace-nowrap">
-                        <button type="button" onClick={() => openReport(r.staffId, r.name)} className="hover:underline hover:text-primary text-left" title="Open this staff member's report">
-                          {r.name}
-                        </button>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span title={r.workNow === "running" ? "Working now" : r.workNow === "paused" ? "On a break" : "Not working now"} className={`h-2 w-2 rounded-full ${r.workNow === "running" ? "bg-emerald-500" : r.workNow === "paused" ? "bg-amber-500" : "bg-slate-300"}`} />
+                          <button type="button" onClick={() => openReport(r.staffId, r.name)} className="hover:underline hover:text-primary text-left" title="Open this staff member's report">
+                            {r.name}
+                          </button>
+                        </span>
                       </TableCell>
                       <TableCell className="min-w-[150px]"><ProgressBar size="sm" value={r.progress} /><span className="text-[10px] text-muted-foreground">{r.completed} / {r.total} done · {r.progress}%</span></TableCell>
                       <TableCell className="font-bold">{r.open}</TableCell>
                       <TableCell className={r.overdue ? "text-red-600 font-bold" : "text-muted-foreground"}>{r.overdue}</TableCell>
                       <TableCell className={r.dueToday ? "text-amber-600 font-bold" : "text-muted-foreground"}>{r.dueToday}</TableCell>
                       <TableCell>{r.completedInPeriod}</TableCell>
+                      <TableCell className="font-semibold">{hm(r.workHours || 0)}</TableCell>
                       <TableCell>{hm(r.hours)}</TableCell>
                       <TableCell>{r.activeProjects}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap text-xs">{r.lastActivity ? dateTime(r.lastActivity) : "-"}</TableCell>
