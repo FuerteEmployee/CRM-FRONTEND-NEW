@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer, TableEmpty } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer, TableEmpty, TablePagination } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -183,6 +183,7 @@ export default function SetupGDPR() {
 
   const [purposeSearch, setPurposeSearch] = useState("");
   const [purposePageSize, setPurposePageSize] = useState("10");
+  const [purposePage, setPurposePage] = useState(1);
   const [isPurposeModalOpen, setIsPurposeModalOpen] = useState(false);
   const [editingPurposeId, setEditingPurposeId] = useState<string | null>(null);
   const [purposeForm, setPurposeForm] = useState({ name: "", description: "" });
@@ -264,9 +265,10 @@ export default function SetupGDPR() {
     );
   }, [purposes, purposeSearch]);
 
-  const purposePageData = purposePageSize === "all"
-    ? filteredPurposes
-    : filteredPurposes.slice(0, parseInt(purposePageSize));
+  // One page of the purposes (10 / 25 / 50 / 100 per page, or all), with page buttons below.
+  const purposeSize = purposePageSize === "all" ? Math.max(filteredPurposes.length, 1) : parseInt(purposePageSize, 10) || 10;
+  const safePurposePage = Math.min(purposePage, Math.max(1, Math.ceil(filteredPurposes.length / purposeSize)));
+  const purposePageData = filteredPurposes.slice((safePurposePage - 1) * purposeSize, safePurposePage * purposeSize);
 
   const formatDateShort = (d: string) => d ? new Date(d).toLocaleDateString() : "-";
 
@@ -1003,12 +1005,12 @@ export default function SetupGDPR() {
                           placeholder="Search..."
                           className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 pr-8"
                           value={purposeSearch}
-                          onChange={(e) => setPurposeSearch(e.target.value)}
+                          onChange={(e) => { setPurposeSearch(e.target.value); setPurposePage(1); }}
                         />
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                         <span className="whitespace-nowrap">Show</span>
-                        <Select value={purposePageSize} onValueChange={setPurposePageSize}>
+                        <Select value={purposePageSize} onValueChange={(v) => { setPurposePageSize(v); setPurposePage(1); }}>
                           <SelectTrigger className="w-[70px] h-9">
                             <SelectValue />
                           </SelectTrigger>
@@ -1075,6 +1077,7 @@ export default function SetupGDPR() {
                           )}
                         </TableBody>
                       </Table>
+                      <TablePagination page={safePurposePage} pageSize={purposeSize} total={filteredPurposes.length} onPageChange={setPurposePage} />
                     </TableContainer>
                   </CardContent>
                 </Card>

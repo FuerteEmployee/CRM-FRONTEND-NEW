@@ -300,7 +300,7 @@ export const ReportProjectWork = () => {
                           {r.projects.map((x: any) => (
                             <div key={x.project._id} className="px-3 py-2.5 space-y-1.5">
                               <div className="flex items-center gap-2 text-xs">
-                                <Link to={base + "/projects/" + x.project._id} className="font-bold hover:underline truncate">{x.project.name}</Link>
+                                <Link to={base + "/projects/view/" + x.project._id} className="font-bold hover:underline truncate">{x.project.name}</Link>
                                 <Badge variant="outline" className={"rounded-full text-[9px] font-bold " + (statusTone[x.project.status] || "")}>{x.project.statusLabel}</Badge>
                                 <span className="text-muted-foreground truncate">{x.project.client}</span>
                                 <span className="ml-auto whitespace-nowrap text-muted-foreground">their tasks <b className="text-foreground">{x.completed}/{x.tasks}</b> · {hm(x.hours)} h</span>
@@ -328,7 +328,7 @@ export const ReportProjectWork = () => {
                           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                             <div className="lg:w-[30%] min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Link to={`${base}/projects/${p._id}`} className="font-bold text-sm hover:underline truncate">{p.name}</Link>
+                                <Link to={`${base}/projects/view/${p._id}`} className="font-bold text-sm hover:underline truncate">{p.name}</Link>
                                 <Badge variant="outline" className={`rounded-full text-[10px] font-bold ${statusTone[p.status] || ""}`}>{p.statusLabel}</Badge>
                               </div>
                               <p className="text-xs text-muted-foreground truncate mt-0.5">{p.client || "No customer"}</p>
@@ -802,7 +802,7 @@ export const ReportCustomerWork = () => {
                                   {c.projectList.map((p: any) => (
                                     <div key={p._id} className="px-3 py-2 space-y-1.5">
                                       <div className="flex items-center gap-2">
-                                        <Link to={`${base}/projects/${p._id}`} className="font-bold hover:underline truncate">{p.name}</Link>
+                                        <Link to={`${base}/projects/view/${p._id}`} className="font-bold hover:underline truncate">{p.name}</Link>
                                         <Badge variant="outline" className={`rounded-full text-[9px] font-bold ${statusTone[p.status] || ""}`}>{p.statusLabel}</Badge>
                                         <span className="ml-auto text-muted-foreground whitespace-nowrap">{p.completed}/{p.total} · {p.progress}%</span>
                                       </div>

@@ -44,6 +44,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 export interface DataTableColumn<T> {
   key: keyof T | string;
@@ -95,7 +96,7 @@ export function DataTable<T extends Record<string, any>>({
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<T[]>([]);
-  const [pageSize, setPageSize] = useState("25");
+  const [pageSize, setPageSize] = useState(() => String(defaultPageSize(25)));
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{
     key: string | null;
@@ -137,7 +138,8 @@ export function DataTable<T extends Record<string, any>>({
     return 0;
   });
 
-  const itemsPerPage = parseInt(pageSize);
+  // "All" = every row on one page.
+  const itemsPerPage = pageSize === "All" ? Math.max(sortedData.length, 1) : parseInt(pageSize, 10) || 25;
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const safeCurrentPage = Math.min(currentPage, totalPages || 1);
 
@@ -378,6 +380,7 @@ export function DataTable<T extends Record<string, any>>({
               <SelectItem value="25">25</SelectItem>
               <SelectItem value="50">50</SelectItem>
               <SelectItem value="100">100</SelectItem>
+              <SelectItem value="All">All</SelectItem>
             </SelectContent>
           </Select>
           <DropdownMenu>

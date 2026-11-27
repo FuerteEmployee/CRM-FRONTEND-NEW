@@ -44,7 +44,7 @@ import {
   KanbanSquare, Mic, X, Zap
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { utilityService } from "@/api/services/utility.service";
@@ -1195,7 +1195,7 @@ const Tasks = () => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Select
-                  value={itemsPerPage.toString()}
+                  value={itemsPerPage === "all" ? "All" : itemsPerPage.toString()}
                   onValueChange={(val) => {
                     setItemsPerPage(val === "All" ? "all" : Number(val));
                     setCurrentPage(1);

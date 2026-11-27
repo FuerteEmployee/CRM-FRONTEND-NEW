@@ -49,10 +49,12 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
   isLoading = false,
   totalItems,
   onPageChange,
+  onPageSizeChange,
   currentPage: externalCurrentPage,
 }: DataTableProps<T>) {
   const [internalPage, setInternalPage] = useState(1);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  // Rows per page chosen in the footer: "10" / "25" / "50" / "100" / "All".
+  const [sizeChoice, setSizeChoice] = useState(String(defaultPageSize));
 
   // Delay showing "No Data Found" so a brief loading flash never shows the empty state
   const [showEmpty, setShowEmpty] = useState(false);
@@ -69,7 +71,7 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
 
   // Sync internal page size state with prop changes
   useEffect(() => {
-    setPageSize(defaultPageSize);
+    setSizeChoice((c) => (c === "All" ? c : String(defaultPageSize)));
     setInternalPage(1);
   }, [defaultPageSize]);
 
@@ -89,7 +91,20 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
   const isServerSide = totalItems !== undefined && onPageChange !== undefined;
   const currentPage = isServerSide ? (externalCurrentPage || 1) : internalPage;
   const totalCount = isServerSide ? totalItems : data.length;
+  const pageSize = sizeChoice === "All" ? Math.max(totalCount, 1) : parseInt(sizeChoice, 10) || defaultPageSize;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  // Server-paged tables can change the size only when the page handles it.
+  const canChangeSize = !isServerSide || !!onPageSizeChange;
+  const changeSize = (v: string) => {
+    setSizeChoice(v);
+    setInternalPage(1);
+    if (isServerSide) {
+      onPageSizeChange?.(parseInt(v, 10));
+      onPageChange?.(1);
+    }
+  };
+  // Server-paged lists: the server sends at most 100 rows a page, so no "All".
+  const sizeChoices = isServerSide ? ["10", "25", "50", "100"] : ["10", "25", "50", "100", "All"];
 
   // Clamp page to bounds if it exceeds total pages
   useEffect(() => {
@@ -146,7 +161,7 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
 
           <TableBody>
             {showSkeleton ? (
-              Array.from({ length: pageSize }).map((_, rowIndex) => (
+              Array.from({ length: Math.min(pageSize, 10) }).map((_, rowIndex) => (
                 <TableRow key={`skeleton-row-${rowIndex}`}>
                   {columns.map((_, colIndex) => (
                     <TableCell key={`skeleton-cell-${colIndex}`}>
@@ -236,6 +251,9 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
             pageSize={pageSize}
             total={totalCount}
             onPageChange={handlePageChange}
+            sizeValue={sizeChoice}
+            onSizeChange={canChangeSize ? changeSize : undefined}
+            sizeChoices={sizeChoices}
           />
         )}
       </TableContainer>

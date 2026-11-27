@@ -168,6 +168,13 @@ describe("Project Work report", () => {
     expect(screen.queryByText("Asha Test")).toBeNull();
     expect(screen.getByText("Bharat Test")).toBeInTheDocument();
   });
+  it("project names open the project page (/projects/view/:id — /projects/:id is a 404)", async () => {
+    h.svc.getProjectWorkReport.mockResolvedValue(projectWork);
+    renderAt("/admin/reports/x", <ReportProjectWork />);
+    expect(await screen.findByRole("link", { name: "Website" })).toHaveAttribute("href", "/admin/projects/view/p1");
+    fireEvent.click(screen.getByRole("button", { name: /By Staff/ }));
+    screen.getAllByRole("link", { name: "Mobile App" }).forEach((a) => expect(a).toHaveAttribute("href", "/admin/projects/view/p2"));
+  });
   it("search narrows projects; timeline view; export has the staff-wise section", async () => {
     h.svc.getProjectWorkReport.mockResolvedValue(projectWork);
     renderAt("/admin/reports/x", <ReportProjectWork />);
@@ -202,6 +209,7 @@ describe("Customer Work report", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /Details/ })[0]);
     expect(screen.getByText("Website")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Website" })).toHaveAttribute("href", "/admin/projects/view/p1");
     expect(screen.getByText("Asha Test")).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Customer, project or staff"), { target: { value: "bharat" } });

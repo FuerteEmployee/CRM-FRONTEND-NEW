@@ -51,7 +51,11 @@ export const salesService = {
   // ─────────────────────────────────────────────
   // Subscriptions
   // ─────────────────────────────────────────────
-  getSubscriptions: () => apiClient.get("/subscriptions"),
+  // Only a customer id (text) is sent: react-query calls this with its own
+  // context object as the first argument on the Subscriptions page, and that
+  // object has a `client` too (the QueryClient), which must not be sent.
+  getSubscriptions: (params) =>
+    apiClient.get("/subscriptions", typeof params?.client === "string" && params.client ? { params: { client: params.client } } : undefined),
   getSubscriptionById: (id) => apiClient.get(`/subscriptions/${id}`),
   createSubscription: (data) => apiClient.post("/subscriptions", data),
   updateSubscription: (id, data) => apiClient.put(`/subscriptions/${id}`, data),

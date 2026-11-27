@@ -309,6 +309,35 @@ export default function CustomerView() {
   const [visibleVaultPasswords, setVisibleVaultPasswords] = useState<Record<string, boolean>>({});
   const [reminderSearch, setReminderSearch] = useState("");
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
+
+  // ── Paging for the tables on this page (each tab has its own 10 / 25 / 50 / 100 / All) ──
+  // paged(key, size, rows) returns the rows of the current page of that table;
+  // pager(key, size) is its footer ("Showing 11 to 20 of 45" + page buttons).
+  // Called in the same render, so pager knows the total that paged just saw.
+  const [tablePage, setTablePage] = useState<Record<string, number>>({});
+  const pagedTotals: Record<string, number> = {};
+  const pagedStart: Record<string, number> = {};
+  const sizeOf = (size: string, total: number) => (String(size).toLowerCase() === "all" ? Math.max(total, 1) : Math.max(parseInt(String(size), 10) || 10, 1));
+  const pageOf = (key: string, size: string, total: number) => {
+    const n = sizeOf(size, total);
+    const pages = Math.max(1, Math.ceil(total / n));
+    return { n, page: Math.min(Math.max(tablePage[key] || 1, 1), pages) };
+  };
+  const paged = <T,>(key: string, size: string, rows: T[] | undefined | null): T[] => {
+    const list = rows || [];
+    const { n, page } = pageOf(key, size, list.length);
+    pagedTotals[key] = list.length;
+    pagedStart[key] = (page - 1) * n;
+    return list.slice((page - 1) * n, page * n);
+  };
+  /** "#" column: keeps counting across pages (page 2 at 10 per page starts at 11). */
+  const rowNo = (key: string, index: number) => (pagedStart[key] || 0) + index + 1;
+  const firstPage = (...keys: string[]) => setTablePage((s) => ({ ...s, ...Object.fromEntries(keys.map((k) => [k, 1])) }));
+  const pager = (key: string, size: string) => {
+    const total = pagedTotals[key] || 0;
+    const { n, page } = pageOf(key, size, total);
+    return <TablePagination page={page} pageSize={n} total={total} onPageChange={(p) => setTablePage((s) => ({ ...s, [key]: p }))} />;
+  };
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   // Setup > Settings > Reminders: who a new reminder goes to by default.
   const reminderDefaults = useReminderSettings();
@@ -2033,7 +2062,7 @@ export default function CustomerView() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
 
-                              <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+                              <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); firstPage("admins", "contacts"); }}>
                                 <SelectTrigger className="h-8 w-[70px] text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
@@ -2061,7 +2090,7 @@ export default function CustomerView() {
                                 {(customer?.admins || []).length === 0 ? (
                                   <TableEmpty colSpan={3}>No staff members assigned as admins for this customer.</TableEmpty>
                                 ) : (
-                                  customer.admins.map((admin: any) => (
+                                  paged("admins", itemsPerPage, customer.admins).map((admin: any) => (
                                     <TableRow key={admin.staff?._id || admin.staff} className="group">
                                       <TableCell>
                                         <div className="flex flex-col">
@@ -2091,7 +2120,7 @@ export default function CustomerView() {
                                 )}
                               </TableBody>
                             </Table>
-                            <TablePagination page={1} pageSize={Math.max((customer?.admins || []).length, 1)} total={(customer?.admins || []).length} onPageChange={() => { }} />
+                            {pager("admins", itemsPerPage)}
                           </TableContainer>
                         </TabsContent>
                       </div>
@@ -2134,7 +2163,7 @@ export default function CustomerView() {
 
                         <div className="flex items-center gap-3">
                           <div className="flex gap-1 bg-muted/30 p-1 rounded-lg border border-border/50">
-                            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+                            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); firstPage("admins", "contacts"); }}>
                               <SelectTrigger className="h-8 w-[70px] text-[10px] uppercase font-bold border-none bg-transparent">
                                 <SelectValue />
                               </SelectTrigger>
@@ -2218,11 +2247,11 @@ export default function CustomerView() {
                             ) : (contacts || []).length === 0 ? (
                               <TableEmpty colSpan={7}>No contacts found for this customer.</TableEmpty>
                             ) : (
-                              [...(contacts || [])].sort((a: any, b: any) => {
+                              paged("contacts", itemsPerPage, [...(contacts || [])].sort((a: any, b: any) => {
                                 const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
                                 const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
                                 return nameA.localeCompare(nameB);
-                              }).map((contact: any) => (
+                              })).map((contact: any) => (
                                 <TableRow key={contact._id} className="group">
                                   <TableCell>
                                     {contact.firstname} {contact.lastname}
@@ -2269,7 +2298,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max((contacts || []).length, 1)} total={(contacts || []).length} onPageChange={() => { }} />
+                        {pager("contacts", itemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -2321,7 +2350,7 @@ export default function CustomerView() {
                       <div className="space-y-4">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex items-center gap-2">
-                            <Select value={noteItemsPerPage} onValueChange={setNoteItemsPerPage}>
+                            <Select value={noteItemsPerPage} onValueChange={(v) => { setNoteItemsPerPage(v); firstPage("notes"); }}>
                               <SelectTrigger className="h-8 w-[70px] text-xs">
                                 <SelectValue />
                               </SelectTrigger>
@@ -2392,8 +2421,8 @@ export default function CustomerView() {
                               ) : notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length === 0 ? (
                                 <TableEmpty colSpan={4}>No notes found.</TableEmpty>
                               ) : (
-                                notes
-                                  .filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase()))
+                                paged("notes", noteItemsPerPage, notes
+                                  .filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())))
                                   .map((note: any) => (
                                     <TableRow key={note._id} className="group">
                                       <TableCell className="whitespace-pre-wrap">
@@ -2439,7 +2468,7 @@ export default function CustomerView() {
                               )}
                             </TableBody>
                           </Table>
-                          <TablePagination page={1} pageSize={Math.max(notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length, 1)} total={notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length} onPageChange={() => { }} />
+                          {pager("notes", noteItemsPerPage)}
                         </TableContainer>
                       </div>
                     </div>
@@ -2676,7 +2705,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={invoiceItemsPerPage} onValueChange={setInvoiceItemsPerPage}>
+                          <Select value={invoiceItemsPerPage} onValueChange={(v) => { setInvoiceItemsPerPage(v); firstPage("invoices"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -2748,7 +2777,7 @@ export default function CustomerView() {
                             ) : invoices.length === 0 ? (
                               <TableEmpty colSpan={9}>No invoices found for this customer.</TableEmpty>
                             ) : (
-                              invoices.map((inv: any) => (
+                              paged("invoices", invoiceItemsPerPage, invoices).map((inv: any) => (
                                 <TableRow key={inv._id}>
                                   <TableCell className="font-medium text-primary">{inv.number}</TableCell>
                                   <TableCell>{formatAmount(inv.total || 0)}</TableCell>
@@ -2809,7 +2838,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(invoices.length, 1)} total={invoices.length} onPageChange={() => { }} />
+                        {pager("invoices", invoiceItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -2853,7 +2882,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={creditNoteItemsPerPage} onValueChange={setCreditNoteItemsPerPage}>
+                          <Select value={creditNoteItemsPerPage} onValueChange={(v) => { setCreditNoteItemsPerPage(v); firstPage("creditNotes"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -2909,7 +2938,7 @@ export default function CustomerView() {
                             ) : creditNotes.length === 0 ? (
                               <TableEmpty colSpan={7}>No credit notes found for this customer.</TableEmpty>
                             ) : (
-                              creditNotes.map((note: any) => (
+                              paged("creditNotes", creditNoteItemsPerPage, creditNotes).map((note: any) => (
                                 <TableRow key={note._id}>
                                   <TableCell className="font-medium text-primary">{note.number || (note._id.slice(-6).toUpperCase())}</TableCell>
                                   <TableCell className="text-muted-foreground">{formatDate(note.date)}</TableCell>
@@ -2933,7 +2962,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(creditNotes.length, 1)} total={creditNotes.length} onPageChange={() => { }} />
+                        {pager("creditNotes", creditNoteItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -2956,7 +2985,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={paymentItemsPerPage} onValueChange={setPaymentItemsPerPage}>
+                          <Select value={paymentItemsPerPage} onValueChange={(v) => { setPaymentItemsPerPage(v); firstPage("payments"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3018,7 +3047,7 @@ export default function CustomerView() {
                             ) : payments.length === 0 ? (
                               <TableEmpty colSpan={6}>No payments found for this customer.</TableEmpty>
                             ) : (
-                              payments.map((pay: any) => (
+                              paged("payments", paymentItemsPerPage, payments).map((pay: any) => (
                                 <TableRow key={pay._id}>
                                   <TableCell className="font-medium text-primary">{pay._id.slice(-6).toUpperCase()}</TableCell>
                                   <TableCell>{pay.invoice?.number || "-"}</TableCell>
@@ -3031,7 +3060,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(payments.length, 1)} total={payments.length} onPageChange={() => { }} />
+                        {pager("payments", paymentItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3057,7 +3086,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={proposalItemsPerPage} onValueChange={setProposalItemsPerPage}>
+                          <Select value={proposalItemsPerPage} onValueChange={(v) => { setProposalItemsPerPage(v); firstPage("proposals"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3113,7 +3142,7 @@ export default function CustomerView() {
                             ) : proposals.length === 0 ? (
                               <TableEmpty colSpan={8}>No proposals found for this customer.</TableEmpty>
                             ) : (
-                              proposals.map((prop: any) => (
+                              paged("proposals", proposalItemsPerPage, proposals).map((prop: any) => (
                                 <TableRow key={prop._id}>
                                   <TableCell className="font-medium text-primary">{prop._id.slice(-6).toUpperCase()}</TableCell>
                                   <TableCell>{prop.subject}</TableCell>
@@ -3154,7 +3183,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(proposals.length, 1)} total={proposals.length} onPageChange={() => { }} />
+                        {pager("proposals", proposalItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3219,7 +3248,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={estimateItemsPerPage} onValueChange={setEstimateItemsPerPage}>
+                          <Select value={estimateItemsPerPage} onValueChange={(v) => { setEstimateItemsPerPage(v); firstPage("estimates"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3282,7 +3311,7 @@ export default function CustomerView() {
                             ) : estimates.length === 0 ? (
                               <TableEmpty colSpan={8}>No estimates found for this customer.</TableEmpty>
                             ) : (
-                              estimates.map((est: any) => (
+                              paged("estimates", estimateItemsPerPage, estimates).map((est: any) => (
                                 <TableRow key={est._id}>
                                   <TableCell className="font-medium text-primary">{est.number || est._id.slice(-6).toUpperCase()}</TableCell>
                                   <TableCell>{est.subject}</TableCell>
@@ -3321,7 +3350,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(estimates.length, 1)} total={estimates.length} onPageChange={() => { }} />
+                        {pager("estimates", estimateItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3344,7 +3373,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={subscriptionItemsPerPage} onValueChange={setSubscriptionItemsPerPage}>
+                          <Select value={subscriptionItemsPerPage} onValueChange={(v) => { setSubscriptionItemsPerPage(v); firstPage("subscriptions"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3407,9 +3436,9 @@ export default function CustomerView() {
                             ) : subscriptions.length === 0 ? (
                               <TableEmpty colSpan={7}>No entries found</TableEmpty>
                             ) : (
-                              subscriptions.map((s: any, index: number) => (
+                              paged("subscriptions", subscriptionItemsPerPage, subscriptions).map((s: any, index: number) => (
                                 <TableRow key={s._id}>
-                                  <TableCell>{index + 1}</TableCell>
+                                  <TableCell>{rowNo("subscriptions", index)}</TableCell>
                                   <TableCell className="font-medium text-primary">{s.name}</TableCell>
                                   <TableCell className="text-muted-foreground">{s.project?.name || "N/A"}</TableCell>
                                   <TableCell>
@@ -3428,7 +3457,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(subscriptions.length, 1)} total={subscriptions.length} onPageChange={() => { }} />
+                        {pager("subscriptions", subscriptionItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3487,7 +3516,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={expenseItemsPerPage} onValueChange={setExpenseItemsPerPage}>
+                          <Select value={expenseItemsPerPage} onValueChange={(v) => { setExpenseItemsPerPage(v); firstPage("expenses"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3550,7 +3579,7 @@ export default function CustomerView() {
                             ) : filteredExpenses.length === 0 ? (
                               <TableEmpty colSpan={9}>No expenses found for this customer.</TableEmpty>
                             ) : (
-                              filteredExpenses.map((exp: any) => (
+                              paged("expenses", expenseItemsPerPage, filteredExpenses).map((exp: any) => (
                                 <TableRow key={exp._id}>
                                   <TableCell>
                                     <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-background border-none shadow-sm px-2 py-0.5">
@@ -3590,7 +3619,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredExpenses.length, 1)} total={filteredExpenses.length} onPageChange={() => { }} />
+                        {pager("expenses", expenseItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3666,7 +3695,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={contractItemsPerPage} onValueChange={setContractItemsPerPage}>
+                          <Select value={contractItemsPerPage} onValueChange={(v) => { setContractItemsPerPage(v); firstPage("contracts"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3729,9 +3758,9 @@ export default function CustomerView() {
                             ) : filteredContracts.length === 0 ? (
                               <TableEmpty colSpan={8}>No contracts found for this customer.</TableEmpty>
                             ) : (
-                              filteredContracts.map((c: any, idx: number) => (
+                              paged("contracts", contractItemsPerPage, filteredContracts).map((c: any, idx: number) => (
                                 <TableRow key={c._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("contracts", idx)}</TableCell>
                                   <TableCell className="font-medium text-primary">{c.subject}</TableCell>
                                   <TableCell className="text-muted-foreground">
                                     <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none text-[9px] font-bold uppercase tracking-widest rounded-md px-2">
@@ -3758,7 +3787,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredContracts.length, 1)} total={filteredContracts.length} onPageChange={() => { }} />
+                        {pager("contracts", contractItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -3799,7 +3828,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={projectItemsPerPage} onValueChange={setProjectItemsPerPage}>
+                          <Select value={projectItemsPerPage} onValueChange={(v) => { setProjectItemsPerPage(v); firstPage("projects"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -3862,9 +3891,9 @@ export default function CustomerView() {
                             ) : filteredProjects.length === 0 ? (
                               <TableEmpty colSpan={7}>No projects found for this customer.</TableEmpty>
                             ) : (
-                              filteredProjects.map((p: any, idx: number) => (
+                              paged("projects", projectItemsPerPage, filteredProjects).map((p: any, idx: number) => (
                                 <TableRow key={p._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("projects", idx)}</TableCell>
                                   <TableCell className="font-medium text-primary">{p.name}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-wrap gap-1">
@@ -3907,7 +3936,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredProjects.length, 1)} total={filteredProjects.length} onPageChange={() => { }} />
+                        {pager("projects", projectItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -4071,7 +4100,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={taskItemsPerPage} onValueChange={setTaskItemsPerPage}>
+                          <Select value={taskItemsPerPage} onValueChange={(v) => { setTaskItemsPerPage(v); firstPage("tasks"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -4134,9 +4163,9 @@ export default function CustomerView() {
                             ) : filteredTasks.length === 0 ? (
                               <TableEmpty colSpan={8}>No tasks found for this customer.</TableEmpty>
                             ) : (
-                              filteredTasks.map((t: any, idx: number) => (
+                              paged("tasks", taskItemsPerPage, filteredTasks).map((t: any, idx: number) => (
                                 <TableRow key={t._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("tasks", idx)}</TableCell>
                                   <TableCell className="font-medium text-primary">{t.name}</TableCell>
                                   <TableCell>
                                     <Badge className={cn(
@@ -4193,7 +4222,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredTasks.length, 1)} total={filteredTasks.length} onPageChange={() => { }} />
+                        {pager("tasks", taskItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -4223,7 +4252,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={ticketItemsPerPage} onValueChange={setTicketItemsPerPage}>
+                          <Select value={ticketItemsPerPage} onValueChange={(v) => { setTicketItemsPerPage(v); firstPage("tickets"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -4286,9 +4315,9 @@ export default function CustomerView() {
                             ) : filteredTickets.length === 0 ? (
                               <TableEmpty colSpan={10}>No tickets found for this customer.</TableEmpty>
                             ) : (
-                              filteredTickets.map((t: any, idx: number) => (
+                              paged("tickets", ticketItemsPerPage, filteredTickets).map((t: any, idx: number) => (
                                 <TableRow key={t._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("tickets", idx)}</TableCell>
                                   <TableCell className="font-medium text-primary">{t.subject}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-wrap gap-1">
@@ -4329,7 +4358,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredTickets.length, 1)} total={filteredTickets.length} onPageChange={() => { }} />
+                        {pager("tickets", ticketItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -4388,7 +4417,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={fileItemsPerPage} onValueChange={setFileItemsPerPage}>
+                          <Select value={fileItemsPerPage} onValueChange={(v) => { setFileItemsPerPage(v); firstPage("files"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -4446,9 +4475,9 @@ export default function CustomerView() {
                             ) : filteredFiles.length === 0 ? (
                               <TableEmpty colSpan={5}>No files found for this customer.</TableEmpty>
                             ) : (
-                              filteredFiles.map((f: any, idx: number) => (
+                              paged("files", fileItemsPerPage, filteredFiles).map((f: any, idx: number) => (
                                 <TableRow key={f._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("files", idx)}</TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-3">
                                       <div className="p-2 bg-blue-50 rounded-lg">
@@ -4482,7 +4511,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredFiles.length, 1)} total={filteredFiles.length} onPageChange={() => { }} />
+                        {pager("files", fileItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -4512,7 +4541,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={vaultItemsPerPage} onValueChange={setVaultItemsPerPage}>
+                          <Select value={vaultItemsPerPage} onValueChange={(v) => { setVaultItemsPerPage(v); firstPage("vault"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -4570,9 +4599,9 @@ export default function CustomerView() {
                             ) : filteredVault.length === 0 ? (
                               <TableEmpty colSpan={6}>No vault entries found for this customer.</TableEmpty>
                             ) : (
-                              filteredVault.map((v: any, idx: number) => (
+                              paged("vault", vaultItemsPerPage, filteredVault).map((v: any, idx: number) => (
                                 <TableRow key={v._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("vault", idx)}</TableCell>
                                   <TableCell>{v.server}</TableCell>
                                   <TableCell className="text-muted-foreground">{v.port || "-"}</TableCell>
                                   <TableCell>{v.username}</TableCell>
@@ -4622,7 +4651,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredVault.length, 1)} total={filteredVault.length} onPageChange={() => { }} />
+                        {pager("vault", vaultItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}
@@ -4657,7 +4686,7 @@ export default function CustomerView() {
                       {/* Table Controls */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
                         <div className="flex items-center gap-3">
-                          <Select value={reminderItemsPerPage} onValueChange={setReminderItemsPerPage}>
+                          <Select value={reminderItemsPerPage} onValueChange={(v) => { setReminderItemsPerPage(v); firstPage("reminders"); }}>
                             <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                               <SelectValue />
                             </SelectTrigger>
@@ -4715,9 +4744,9 @@ export default function CustomerView() {
                             ) : filteredReminders.length === 0 ? (
                               <TableEmpty colSpan={6}>No reminders found for this customer.</TableEmpty>
                             ) : (
-                              filteredReminders.map((r: any, idx: number) => (
+                              paged("reminders", reminderItemsPerPage, filteredReminders).map((r: any, idx: number) => (
                                 <TableRow key={r._id}>
-                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{rowNo("reminders", idx)}</TableCell>
                                   <TableCell>{formatDate(r.date)}</TableCell>
                                   <TableCell className="text-muted-foreground max-w-xs truncate">{r.description}</TableCell>
                                   <TableCell>{r.staff?.firstname} {r.staff?.lastname}</TableCell>
@@ -4744,7 +4773,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredReminders.length, 1)} total={filteredReminders.length} onPageChange={() => { }} />
+                        {pager("reminders", reminderItemsPerPage)}
                       </TableContainer>
                     </div>
                   )}

@@ -50,17 +50,18 @@ export default function SessionLogsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [dateFilter, setDateFilter]  = useState("");
     const [page, setPage]  = useState(1);
+    const [pageLimit, setPageLimit] = useState(PAGE_LIMIT);
     const [total, setTotal] = useState(0);
 
     // Debounce search — reset page and wait 400 ms before fetching
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const loadLogs = useCallback(async (pg: number, search: string, date: string) => {
+    const loadLogs = useCallback(async (pg: number, search: string, date: string, limit: number = PAGE_LIMIT) => {
         setIsLoading(true);
         try {
             const result = await employeeApi.getSessionLogs({
                 page: pg,
-                limit: PAGE_LIMIT,
+                limit,
                 ...(search ? { search } : {}),
                 ...(date   ? { date }   : {}),
             });
@@ -75,9 +76,9 @@ export default function SessionLogsPage() {
 
     // Fetch when page or dateFilter changes immediately
     useEffect(() => {
-        loadLogs(page, searchQuery, dateFilter);
+        loadLogs(page, searchQuery, dateFilter, pageLimit);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, dateFilter]);
+    }, [page, dateFilter, pageLimit]);
 
     // Debounce search: reset to page 1, wait 400 ms
     const handleSearchChange = (value: string) => {
@@ -85,7 +86,7 @@ export default function SessionLogsPage() {
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             setPage(1);
-            loadLogs(1, value, dateFilter);
+            loadLogs(1, value, dateFilter, pageLimit);
         }, 400);
     };
 
@@ -96,7 +97,7 @@ export default function SessionLogsPage() {
     };
 
     const handleRefresh = () => {
-        loadLogs(page, searchQuery, dateFilter);
+        loadLogs(page, searchQuery, dateFilter, pageLimit);
     };
 
     const getDeviceIcon = (userAgent?: string) => {
@@ -205,10 +206,11 @@ export default function SessionLogsPage() {
                 <DataTable
                     data={logs}
                     isLoading={isLoading}
-                    pageSize={PAGE_LIMIT}
+                    pageSize={pageLimit}
                     totalItems={total}
                     currentPage={page}
                     onPageChange={setPage}
+                    onPageSizeChange={(n) => { setPageLimit(n); setPage(1); }}
                     columns={[
                         {
                             header: "Employee",

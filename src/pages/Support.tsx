@@ -43,6 +43,9 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { defaultPageSize } from "@/lib/tablePageSize";
 
+// Page size meaning "All" (every row).
+const ALL_ROWS = Number.MAX_SAFE_INTEGER;
+
 const Support = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(() => defaultPageSize(25));
@@ -194,11 +197,12 @@ const Support = () => {
   };
 
   const totalItems = filtered.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginated = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // "All" = every ticket (no 1000 cap). The page is kept inside the range so a
+  // bigger page size or a narrower filter never shows an empty table.
+  const pageSize = itemsPerPage >= ALL_ROWS ? Math.max(totalItems, 1) : itemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <DashboardLayout>
@@ -218,7 +222,7 @@ const Support = () => {
             {/* Table Header Controls */}
             <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
               <div className="flex items-center gap-4">
-                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(v === "all" ? 1000 : parseInt(v))}>
+                <Select value={itemsPerPage >= ALL_ROWS ? "all" : itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(v === "all" ? ALL_ROWS : parseInt(v)); setCurrentPage(1); }}>
                   <SelectTrigger className="w-[70px] h-9 bg-white border-slate-200 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -410,7 +414,7 @@ const Support = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          {(currentPage - 1) * itemsPerPage + index + 1}
+                          {(safePage - 1) * pageSize + index + 1}
                         </TableCell>
                         <TableCell>
                           <span className="font-semibold text-primary hover:underline cursor-pointer">
@@ -465,10 +469,10 @@ const Support = () => {
             {/* Pagination */}
             {!isLoading && filtered.length > 0 && (
               <TablePagination
-                page={currentPage}
-                pageSize={itemsPerPage}
+                page={safePage}
+                pageSize={pageSize}
                 total={totalItems}
-                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), Math.max(totalPages, 1)))}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalPages))}
               />
             )}
           </CardContent>

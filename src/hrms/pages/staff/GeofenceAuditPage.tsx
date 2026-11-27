@@ -34,12 +34,13 @@ export default function GeofenceAuditPage() {
     const [logs, setLogs] = useState<GeofenceAuditLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [page, setPage] = useState(1);
+    const [pageLimit, setPageLimit] = useState(PAGE_LIMIT);
     const [total, setTotal] = useState(0);
 
-    const loadLogs = useCallback(async (pg: number) => {
+    const loadLogs = useCallback(async (pg: number, limit: number = PAGE_LIMIT) => {
         setIsLoading(true);
         try {
-            const result = await employeeApi.getGeofenceAuditLogs({ page: pg, limit: PAGE_LIMIT });
+            const result = await employeeApi.getGeofenceAuditLogs({ page: pg, limit });
             setLogs(result.data);
             setTotal(result.total);
         } catch {
@@ -50,11 +51,11 @@ export default function GeofenceAuditPage() {
     }, []);
 
     useEffect(() => {
-        loadLogs(page);
+        loadLogs(page, pageLimit);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page]);
+    }, [page, pageLimit]);
 
-    const handleRefresh = () => loadLogs(page);
+    const handleRefresh = () => loadLogs(page, pageLimit);
 
     const getTriggerBadge = (trigger?: string) => {
         const label = trigger === "client" ? "Manual Check" : trigger === "replay" ? "Offline Replay" : "Background";
@@ -111,10 +112,11 @@ export default function GeofenceAuditPage() {
                 <DataTable
                     data={logs}
                     isLoading={isLoading}
-                    pageSize={PAGE_LIMIT}
+                    pageSize={pageLimit}
                     totalItems={total}
                     currentPage={page}
                     onPageChange={setPage}
+                    onPageSizeChange={(n) => { setPageLimit(n); setPage(1); }}
                     columns={[
                         {
                             header: "Employee",

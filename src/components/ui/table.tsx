@@ -320,18 +320,28 @@ TableCaption.displayName = "TableCaption";
 
 // Footer used under every table: "Showing x to y of z entries" + compact
 // ‹ 1 2 3 › arrow pagination. `page` is 1-based. Renders nothing when total is 0.
+// Optional: pass `sizeValue` + `onSizeChange` to also show a "Rows" select
+// (10 / 25 / 50 / 100 / All) — for tables that have no rows-per-page control
+// of their own (e.g. the HRMS DataTable).
+export const PAGE_SIZE_CHOICES = ["10", "25", "50", "100", "All"] as const;
 function TablePagination({
   page,
   pageSize,
   total,
   onPageChange,
   className,
+  sizeValue,
+  onSizeChange,
+  sizeChoices = PAGE_SIZE_CHOICES,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPageChange: (page: number) => void;
   className?: string;
+  sizeValue?: string;
+  onSizeChange?: (size: string) => void;
+  sizeChoices?: readonly string[];
 }) {
   if (!total) return null;
   const totalPages = Math.max(1, Math.ceil(total / Math.max(pageSize, 1)));
@@ -348,10 +358,25 @@ function TablePagination({
 
   return (
     <div className={cn("px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-t bg-muted/30", className)}>
-      <div className="text-xs text-muted-foreground font-medium">
-        Showing <span className="text-foreground font-semibold">{start}</span> to{" "}
-        <span className="text-foreground font-semibold">{end}</span> of{" "}
-        <span className="text-foreground font-semibold">{total}</span> entries
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground font-medium">
+        {onSizeChange && (
+          <label className="inline-flex items-center gap-1.5">
+            <span>Rows</span>
+            <select
+              aria-label="Rows per page"
+              value={sizeValue}
+              onChange={(e) => onSizeChange(e.target.value)}
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {sizeChoices.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+        )}
+        <span>
+          Showing <span className="text-foreground font-semibold">{start}</span> to{" "}
+          <span className="text-foreground font-semibold">{end}</span> of{" "}
+          <span className="text-foreground font-semibold">{total}</span> entries
+        </span>
       </div>
       <nav className="flex items-center gap-1" aria-label="Pagination">
         <button

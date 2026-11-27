@@ -324,7 +324,7 @@ const EmployeePage = () => {
 
   // Server-side pagination for the Daily Attendance Record table
   const [attCurrentPage, setAttCurrentPage] = useState(1);
-  const attPageSize = 25;
+  const [attPageSize, setAttPageSize] = useState(25);
   const [attTotalCount, setAttTotalCount] = useState(0);
 
   // ─── API helpers ─────────────────────────────────────────────────────────
@@ -541,7 +541,7 @@ const EmployeePage = () => {
     };
     fetchAttendance();
     fetchPayroll();
-  }, [selectedMonth, selectedStore, attCurrentPage]);
+  }, [selectedMonth, selectedStore, attCurrentPage, attPageSize]);
 
   // Reset back to page 1 whenever the date/store filter changes.
   useEffect(() => {
@@ -814,6 +814,7 @@ const EmployeePage = () => {
                 currentPage={attCurrentPage}
                 onPageChange={setAttCurrentPage}
                 pageSize={attPageSize}
+                onPageSizeChange={(n) => { setAttPageSize(n); setAttCurrentPage(1); }}
                 columns={[
                   {
                     header: "Employee",

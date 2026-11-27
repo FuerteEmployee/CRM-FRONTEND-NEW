@@ -167,7 +167,7 @@ export default function UsersPage() {
   // server-side, so they keep filtering client-side over whatever page is
   // currently loaded (see filteredUsers below).
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -219,7 +219,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchAllData();
-  }, [currentPage, roleFilter, statusFilter, debouncedSearch, branchFilter]);
+  }, [currentPage, itemsPerPage, roleFilter, statusFilter, debouncedSearch, branchFilter]);
 
   // Reset back to page 1 whenever a filter changes, since they're all server
   // params now and a stale page could point past the new result set.
@@ -732,6 +732,7 @@ export default function UsersPage() {
             currentPage={currentPage}
             onPageChange={setCurrentPage}
             pageSize={itemsPerPage}
+            onPageSizeChange={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
             columns={[
               ...(hasPermission("edit_staff") ? [{
                 header: <Checkbox checked={pageAllSelected} onCheckedChange={togglePage} aria-label="Select all on this page" />,

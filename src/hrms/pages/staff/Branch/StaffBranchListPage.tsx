@@ -55,7 +55,7 @@ export default function StaffBranchListPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(10);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [filterData, setFilterData] = useState({
     search: "",
@@ -530,6 +530,7 @@ export default function StaffBranchListPage() {
               totalItems={totalItems}
               currentPage={currentPage}
               onPageChange={page => setCurrentPage(page)}
+              onPageSizeChange={(n) => { setPageSize(n); setCurrentPage(1); }}
               onRowClick={row => {
                 const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
                 navigate(`${basePath}/staff/branches/edit/${row.id || row._id}`);

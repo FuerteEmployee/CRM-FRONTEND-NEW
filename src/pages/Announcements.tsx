@@ -14,7 +14,9 @@ import {
   TableHeader, 
   TableRow,
   TableEmpty,
+  TablePagination,
 } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 import {
   Plus,
   Search,
@@ -44,7 +46,8 @@ import { RichTextContent } from "@/components/shared/RichTextContent";
 const Announcements = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [pageSize, setPageSize] = useState("25");
+  const [pageSize, setPageSize] = useState(() => String(defaultPageSize(25)));
+  const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewAnnouncement, setViewAnnouncement] = useState<any>(null);
   
@@ -111,7 +114,11 @@ const Announcements = () => {
     item.message?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const displayData = pageSize === "All" ? filteredData : filteredData.slice(0, parseInt(pageSize));
+  // One page of the list (10 / 25 / 50 / 100 per page, or All), with page buttons below.
+  const size = pageSize === "All" ? Math.max(filteredData.length, 1) : parseInt(pageSize, 10) || 25;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / size));
+  const currentPage = Math.min(page, totalPages);
+  const displayData = filteredData.slice((currentPage - 1) * size, currentPage * size);
 
   const stripHtml = (html: string) => (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -138,7 +145,7 @@ const Announcements = () => {
           <CardHeader className="bg-accent/5 border-b border-border/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Select value={pageSize} onValueChange={setPageSize}>
+                <Select value={pageSize} onValueChange={(v) => { setPageSize(v); setPage(1); }}>
                   <SelectTrigger className="w-[80px] h-9 rounded-lg border-border/40 bg-background">
                     <SelectValue />
                   </SelectTrigger>
@@ -205,7 +212,7 @@ const Announcements = () => {
                   placeholder="Search announcements..." 
                   className="pl-10 h-9 rounded-lg border-border/40 bg-background focus-visible:ring-primary/20"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                 />
               </div>
             </div>
@@ -302,6 +309,7 @@ const Announcements = () => {
                   )}
                 </TableBody>
               </Table>
+              <TablePagination page={currentPage} pageSize={size} total={filteredData.length} onPageChange={setPage} />
             </div>
           </CardContent>
         </Card>

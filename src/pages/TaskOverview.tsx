@@ -25,6 +25,9 @@ import { ExportButton } from "@/components/ui/export-button";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 import { defaultPageSize } from "@/lib/tablePageSize";
 
+// Page size meaning "All" (every row).
+const ALL_ROWS = Number.MAX_SAFE_INTEGER;
+
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
   { id: 2, label: "In Progress", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
@@ -109,11 +112,12 @@ const TaskOverview = () => {
 
   // Pagination logic
   const totalItems = filteredTasks.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedTasks = filteredTasks.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // "All" = every task (no 1000 cap). The page is kept inside the range so a
+  // bigger page size or a narrower filter never shows an empty table.
+  const pageSize = itemsPerPage >= ALL_ROWS ? Math.max(totalItems, 1) : itemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+  const paginatedTasks = filteredTasks.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <DashboardLayout>
@@ -205,7 +209,7 @@ const TaskOverview = () => {
             {/* Table Header Controls */}
             <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
               <div className="flex items-center gap-4">
-                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(parseInt(v))}>
+                <Select value={itemsPerPage >= ALL_ROWS ? "all" : itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(v === "all" ? ALL_ROWS : parseInt(v)); setCurrentPage(1); }}>
                   <SelectTrigger className="w-[70px] h-9 bg-white border-slate-200 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -214,7 +218,7 @@ const TaskOverview = () => {
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
                     <SelectItem value="100">100</SelectItem>
-                    <SelectItem value="1000">ALL</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
                 
@@ -338,10 +342,10 @@ const TaskOverview = () => {
             {/* Pagination */}
             {!tasksLoading && filteredTasks.length > 0 && (
               <TablePagination
-                page={currentPage}
-                pageSize={itemsPerPage}
+                page={safePage}
+                pageSize={pageSize}
                 total={totalItems}
-                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), Math.max(totalPages, 1)))}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalPages))}
               />
             )}
           </CardContent>

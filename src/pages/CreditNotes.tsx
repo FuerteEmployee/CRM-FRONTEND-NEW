@@ -417,6 +417,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const { defaultStaff } = useReminderSettings();
   const [reminderSearch, setReminderSearch] = useState("");
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
+  const [reminderPage, setReminderPage] = useState(1);
   const { toast } = useToast();
   const { symbol } = useCurrency();
   const queryClient = useQueryClient();
@@ -531,8 +532,13 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
       ? creditNoteReminders.filter((r: any) =>
           `${r.description || ""} ${r.staff?.firstname || ""} ${r.staff?.lastname || ""}`.toLowerCase().includes(q))
       : creditNoteReminders;
-    return reminderItemsPerPage === "All" ? list : list.slice(0, Number(reminderItemsPerPage) || 10);
+    return list;
   })();
+  // One page of the reminders (10 / 25 / 50 / 100 per page, or All), with page buttons below.
+  const reminderSize = reminderItemsPerPage === "All" ? Math.max(shownReminders.length, 1) : Number(reminderItemsPerPage) || 10;
+  const reminderPages = Math.max(1, Math.ceil(shownReminders.length / reminderSize));
+  const safeReminderPage = Math.min(reminderPage, reminderPages);
+  const pagedReminders = shownReminders.slice((safeReminderPage - 1) * reminderSize, safeReminderPage * reminderSize);
 
   const item = fullData || viewItem;
 
@@ -950,7 +956,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
 
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-3">
-                    <Select value={reminderItemsPerPage} onValueChange={setReminderItemsPerPage}>
+                    <Select value={reminderItemsPerPage} onValueChange={(v) => { setReminderItemsPerPage(v); setReminderPage(1); }}>
                       <SelectTrigger className="h-9 w-[80px] bg-white border-slate-200 shadow-sm rounded-lg text-xs font-bold">
                         <SelectValue />
                       </SelectTrigger>
@@ -971,7 +977,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       placeholder="Search..."
                       className="pl-9 h-9 bg-white border-slate-200 shadow-sm rounded-lg text-xs"
                       value={reminderSearch}
-                      onChange={(e) => setReminderSearch(e.target.value)}
+                      onChange={(e) => { setReminderSearch(e.target.value); setReminderPage(1); }}
                     />
                   </div>
                 </div>
@@ -988,7 +994,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                     </TableHeader>
                     <TableBody>
                       {shownReminders.length > 0 ? (
-                        shownReminders.map((rem: any) => (
+                        pagedReminders.map((rem: any) => (
                           <TableRow key={rem._id}>
                             <TableCell className="text-slate-700 font-medium">{rem.description}</TableCell>
                             <TableCell className="text-slate-500">{formatDateTime(rem.date)}</TableCell>
@@ -1005,6 +1011,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       )}
                     </TableBody>
                   </Table>
+                  <TablePagination page={safeReminderPage} pageSize={reminderSize} total={shownReminders.length} onPageChange={setReminderPage} />
                 </TableContainer>
               </div>
             )}

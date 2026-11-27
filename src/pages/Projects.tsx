@@ -289,7 +289,7 @@ const Projects = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">
                 <Select
-                  value={itemsPerPage.toString()} 
+                  value={itemsPerPage >= 999999 ? "All" : itemsPerPage.toString()}
                   onValueChange={(val) => { setItemsPerPage(val === "All" ? 999999 : Number(val)); setCurrentPage(1); }}
                 >
                   <SelectTrigger className="w-[70px] h-8 text-[11px] font-bold">
