@@ -1,5 +1,4 @@
-import { useState, useRef } from "react";
-import Papa from "papaparse";
+import { useState } from "react";
 import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,7 +60,17 @@ import { Link, useSearchParams } from "react-router-dom";
 import { TableActions } from "@/components/TableActions";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { defaultPageSize } from "@/lib/tablePageSize";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 
+// Import popup columns = sample-file headers processContactRows reads.
+const CONTACT_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "First Name", sample: "Amit", required: true, aliases: ["firstname", "fname", "Name", "Full Name", "Contact Name"] },
+  { key: "Last Name", sample: "Shah", aliases: ["lastname", "lname", "Surname"] },
+  { key: "Email", sample: "amit@example.com", required: true, aliases: ["E-mail", "Email Address", "Mail"] },
+  { key: "Company", sample: "Existing Customer Name", required: true, aliases: ["Company Name", "Customer", "Customer/Company", "Client"] },
+  { key: "Phone", sample: "9876543210", aliases: ["phonenumber", "Phone Number", "Mobile", "Mobile No", "Mobile Number", "Contact Number", "No", "Number"] },
+  { key: "Position", sample: "Manager", aliases: ["Title", "Designation", "Job Title", "Role"] },
+];
 
 const Contacts = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -177,7 +186,6 @@ const Contacts = () => {
     },
   });
 
-  const importFileRef = useRef<HTMLInputElement>(null);
 
   const importMutation = useMutation({
     mutationFn: (data: any) => customerService.importContacts(data),
@@ -207,16 +215,19 @@ const Contacts = () => {
     return "";
   };
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const ext = file.name.split(".").pop()?.toLowerCase();
-
-    const processRows = (rows: any[]) => {
+  // Rows come from the Import popup (ImportDialog), already mapped to the
+  // CONTACT_IMPORT_COLUMNS headers; getField also accepts other spellings.
+  const processContactRows = (rows: any[]) => {
       const mapped = rows.map((r) => {
         let firstname = getField(r, "firstname", "first name", "fname");
         let lastname = getField(r, "lastname", "last name", "lname", "surname");
         // "Full Name" / "Name" column (what our own export produces) → split it
+        // A full-name column mapped to "First Name" in the popup → split it too.
+        if (firstname && !lastname && /\s/.test(firstname)) {
+          const parts = firstname.split(/\s+/);
+          firstname = parts.shift() || "";
+          lastname = parts.join(" ");
+        }
         if (!firstname) {
           const full = getField(r, "full name", "fullname", "name", "contact name");
           if (full) {
@@ -253,39 +264,6 @@ const Contacts = () => {
         toast({ title: "Note", description: `${dropped} row(s) skipped — missing name, email, or company.` });
       }
       importMutation.mutate(valid as any);
-    };
-
-    if (ext === "xlsx" || ext === "xls") {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const wb = XLSX.read(new Uint8Array(evt.target?.result as ArrayBuffer), { type: "array" });
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          processRows(XLSX.utils.sheet_to_json(ws, { defval: "" }));
-        } catch {
-          toast({ title: "Parsing Error", description: "Could not read Excel file.", variant: "destructive" });
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (res) => processRows(res.data as any[]),
-      });
-    }
-    e.target.value = "";
-  };
-
-  // Downloads an .xlsx template with the exact headers the import understands
-  const handleDownloadTemplate = () => {
-    const headers = ["First Name", "Last Name", "Email", "Company", "Phone", "Position"];
-    const example = ["Amit", "Shah", "amit@example.com", "Existing Customer Name", "9876543210", "Manager"];
-    const ws = XLSX.utils.aoa_to_sheet([headers, example]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contacts");
-    XLSX.writeFile(wb, "contacts_import_template.xlsx");
-    toast({ title: "Template Downloaded", description: "Fill it and use Import. 'Company' must match an existing customer." });
   };
 
   const handlePermissionChange = (permission: string, type: "permissions" | "email_notifications") => {
@@ -393,26 +371,16 @@ const Contacts = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Import contacts from Excel / CSV */}
-                <input ref={importFileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-2 text-xs font-bold uppercase tracking-wider"
-                  disabled={importMutation.isPending}
-                  onClick={() => importFileRef.current?.click()}
-                >
-                  <RefreshCcw className="h-3.5 w-3.5" />
-                  {importMutation.isPending ? "Importing..." : "Import"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-2 text-xs font-bold uppercase tracking-wider"
-                  onClick={handleDownloadTemplate}
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" />
-                  Sample
-                </Button>
+                <ImportDialog
+                  title="Import Contacts"
+                  triggerLabel="Import"
+                  columns={CONTACT_IMPORT_COLUMNS}
+                  onData={processContactRows}
+                  loading={importMutation.isPending}
+                  templateFilename="contacts_sample_import.xlsx"
+                  sheetName="Contacts"
+                  mappingNote="'Company' must match an existing customer's company name. A single 'Name' column is split into first and last name."
+                />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider">

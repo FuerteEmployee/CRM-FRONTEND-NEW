@@ -70,7 +70,7 @@ import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, Tab
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { defaultPageSize } from "@/lib/tablePageSize";
@@ -80,6 +80,16 @@ const statusMap: Record<number, { label: string; color: string }> = {
   2: { label: "Closed", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   3: { label: "Void", color: "bg-slate-50 text-slate-700 border-slate-200" },
 };
+
+// Import popup columns = sample-file headers the backend's importCreditNotes reads.
+const CREDIT_NOTE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Customer", sample: "Existing Customer Name", required: true, aliases: ["Company", "Company Name", "Client", "Party Name"] },
+  { key: "Credit Note #", sample: "CN-0001", aliases: ["Number", "Credit Note No", "Credit Note Number", "CN No"] },
+  { key: "Amount", sample: 5000, aliases: ["Total", "Value"] },
+  { key: "Date", sample: "2026-12-01", aliases: ["Credit Note Date"] },
+  { key: "Status", sample: "Open" },
+  { key: "Reference", sample: "INV-1001 return", core: false, aliases: ["Ref", "Remarks"] },
+];
 
 const CreditNotes = () => {
   const [search, setSearch] = useState("");
@@ -301,7 +311,16 @@ const CreditNotes = () => {
                 { header: "Remaining Amount", key: (cn) => cn.remaining_amount ?? cn.total ?? 0 }
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Credit Notes"
+              triggerLabel="Import"
+              columns={CREDIT_NOTE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              templateFilename="credit_notes_sample_import.xlsx"
+              sheetName="Credit Notes"
+              mappingNote="'Customer' must match an existing customer's company name. Status: Open / Closed / Void. A Credit Note # that already exists is skipped."
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

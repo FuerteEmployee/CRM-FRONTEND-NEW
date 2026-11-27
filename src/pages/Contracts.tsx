@@ -32,7 +32,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -46,6 +46,18 @@ const statusColors: Record<string, string> = {
     "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400",
   Signed: "bg-primary/10 text-primary border-primary/20",
 };
+
+// Import popup columns = sample-file headers the backend's importContracts reads.
+const CONTRACT_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Company", sample: "Existing Customer Name", required: true, aliases: ["Company Name", "Customer", "Client", "Party Name"] },
+  { key: "Subject", sample: "Annual Maintenance Contract", required: true, aliases: ["Contract Name", "Title", "Contract"] },
+  { key: "Contract Value", sample: 120000, aliases: ["Value", "Amount", "contract_value"] },
+  { key: "Contract Type", sample: "AMC", aliases: ["Type", "contract_type"] },
+  { key: "Start Date", sample: "2026-12-01", aliases: ["datestart", "From"] },
+  { key: "End Date", sample: "2027-11-30", aliases: ["dateend", "To", "Expiry Date"] },
+  { key: "Description", sample: "Yearly support and service", core: false, aliases: ["Details", "Notes"] },
+  { key: "Signed", sample: "Yes", core: false, aliases: ["is_signed", "Is Signed"] },
+];
 
 const Contracts = () => {
   const [clients, setClients] = useState<any[]>([]);
@@ -397,7 +409,16 @@ const Contracts = () => {
                 { header: "End", key: "dateend" }
               ]}
             />
-            <ImportButton onData={handleImportData} loading={isImporting} />
+            <ImportDialog
+              title="Import Contracts"
+              triggerLabel="Import"
+              columns={CONTRACT_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={isImporting}
+              templateFilename="contracts_sample_import.xlsx"
+              sheetName="Contracts"
+              mappingNote="'Company' must match an existing customer's company name. Dates as YYYY-MM-DD; Signed: Yes / No."
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

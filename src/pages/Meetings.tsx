@@ -32,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
@@ -42,6 +42,17 @@ import { useSettings } from "@/context/SettingsContext";
 
 const memberLabel = (m: any) =>
   typeof m === "string" ? m : [m?.firstname, m?.lastname].filter(Boolean).join(" ") || m?.email || m?._id;
+
+// Import popup columns = sample-file headers the backend's importMeetings reads.
+const MEETING_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Topic", sample: "Weekly sales review", required: true, aliases: ["Title", "Subject", "Meeting", "Meeting Name"] },
+  { key: "Date", sample: "2026-12-01", required: true, aliases: ["Meeting Date"] },
+  { key: "Time", sample: "11:00", aliases: ["Meeting Time", "Start Time"] },
+  { key: "Agenda", sample: "Targets and pending follow-ups", aliases: ["Description", "Notes"] },
+  { key: "Members", sample: "staff1@company.com, staff2@company.com", aliases: ["Attendees", "Participants", "Staff"] },
+  { key: "Meeting Type", sample: "Internal", aliases: ["Type", "meeting_type"] },
+  { key: "Status", sample: "Scheduled", core: false },
+];
 
 export default function Meetings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -673,7 +684,18 @@ export default function Meetings() {
                 { header: "Summary", key: "summary" }
               ]}
             />
-            {canCreate && <ImportButton onData={handleImportData} loading={importMutation.isPending} />}
+            {canCreate && (
+              <ImportDialog
+                title="Import Meetings"
+                triggerLabel="Import"
+                columns={MEETING_IMPORT_COLUMNS}
+                onData={handleImportData}
+                loading={importMutation.isPending}
+                templateFilename="meetings_sample_import.xlsx"
+                sheetName="Meetings"
+                mappingNote="Members: staff emails or full names, comma-separated. Date as YYYY-MM-DD, Time as HH:MM."
+              />
+            )}
             <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : handleCloseModal())}>
               {canCreate && (
                 <DialogTrigger asChild>

@@ -91,6 +91,16 @@ const priorityLabels: Record<number, string> = {
   4: "Urgent",
 };
 
+// Import popup columns = sample-file headers; processTaskRows reads them via getField.
+const TASK_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Task Name", sample: "Call the client about renewal", required: true, aliases: ["Name", "Subject", "Task", "Title"] },
+  { key: "Description", sample: "Discuss next year's plan", aliases: ["Details", "Notes", "Remarks"] },
+  { key: "Status", sample: "Not Started", aliases: ["Task Status"] },
+  { key: "Priority", sample: "Medium" },
+  { key: "Start Date", sample: "2026-12-01", aliases: ["startdate", "Start", "From"] },
+  { key: "Due Date", sample: "2026-12-05", aliases: ["duedate", "Deadline", "End Date", "Due"] },
+];
+
 const Tasks = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
@@ -502,7 +512,7 @@ const Tasks = () => {
       const rawStatus = getField(row, "status");
       const rawPriority = getField(row, "priority");
       return {
-        name: getField(row, "name", "subject", "task", "taskname", "task name"),
+        name: getField(row, "task name", "name", "subject", "task", "taskname"),
         description: getField(row, "description"),
         status: statusNameToId[String(rawStatus).toLowerCase().trim()] ?? (Number(rawStatus) || 1),
         priority: priorityNameToId[String(rawPriority).toLowerCase().trim()] ?? (Number(rawPriority) || 2),
@@ -805,7 +815,16 @@ const Tasks = () => {
           {(isAdmin || isStaff || can("Tasks", "Create")) && (
             <div className="flex flex-wrap gap-2 items-center">
               {(isAdmin || can("Tasks", "Create")) && (
-                <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
+                <ImportDialog
+                  title="Import Tasks"
+                  triggerLabel="Import Tasks"
+                  columns={TASK_IMPORT_COLUMNS}
+                  onData={processTaskRows}
+                  loading={importTasksMutation.isPending}
+                  templateFilename="tasks_sample_import.xlsx"
+                  sheetName="Tasks"
+                  mappingNote="Status: Not Started / In Progress / Testing / Awaiting Feedback / Complete. Priority: Low / Medium / High / Urgent. Dates as YYYY-MM-DD."
+                />
               )}
               <Dialog open={isNewTaskModalOpen} onOpenChange={(open) => (open ? setIsNewTaskModalOpen(true) : handleCloseModal())}>
                 {/* Only the "New Task" button needs Create — the dialog itself stays,

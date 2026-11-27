@@ -58,6 +58,10 @@ export const utilityService = {
   getWorkOverview: (period, fromDate, toDate) =>
     apiClient.get(`/reports/work-overview?period=${period || 'this_month'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
 
+  // One staff member's report: their tasks project-wise with descriptions and hours.
+  getStaffReport: (staffId, period, fromDate, toDate) =>
+    apiClient.get(`/reports/staff-report/${staffId}?period=${period || 'this_month'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
+
   // Logout check: tasks due today / overdue that block logging out.
   // attempt=true when the person pressed Logout (admins are told if blocked).
   logoutCheck: (attempt) => apiClient.get(`/work/logout-check${attempt ? '?attempt=1' : ''}`),

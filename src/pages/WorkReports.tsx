@@ -21,6 +21,7 @@ import {
   ExportMenu, runExport, FilterLabel, PeriodFilter, Kpi, LoadError, Loading, isForbidden,
   useCompanyName, fmtDate, toList, PERIODS, periodLabel, needsDate, hm, clockTime, clockSpan, OwnRecordsNote,
 } from "./ReportPages";
+import { StaffWorkReportDialog } from "@/components/reports/StaffWorkReportDialog";
 
 // ── Small shared pieces ─────────────────────────────────────────────────────
 
@@ -860,6 +861,11 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
   const [custSearch, setCustSearch] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
   const [staffShow, setStaffShow] = useState<"all" | "pending" | "overdue">("all");
+  // Staff member whose own report (tasks project-wise) is open in the dialog.
+  const [reportFor, setReportFor] = useState<{ id: string; name: string } | null>(null);
+  // Kept separate so the staff member's data stays on screen while the popup animates closed.
+  const [reportOpen, setReportOpen] = useState(false);
+  const openReport = (id: string, name: string) => { setReportFor({ id, name }); setReportOpen(true); };
   const companyName = useCompanyName();
   const base = useBase();
 
@@ -964,7 +970,11 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
                 <TableBody>
                   {staff.length === 0 ? <TableEmpty colSpan={10}>No staff for the selected filters.</TableEmpty> : staff.map((r) => (
                     <TableRow key={r.staffId}>
-                      <TableCell className="font-medium whitespace-nowrap">{r.name}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        <button type="button" onClick={() => openReport(r.staffId, r.name)} className="hover:underline hover:text-primary text-left" title="Open this staff member's report">
+                          {r.name}
+                        </button>
+                      </TableCell>
                       <TableCell className="min-w-[150px]"><ProgressBar size="sm" value={r.progress} /><span className="text-[10px] text-muted-foreground">{r.completed} / {r.total} done · {r.progress}%</span></TableCell>
                       <TableCell className="font-bold">{r.open}</TableCell>
                       <TableCell className={r.overdue ? "text-red-600 font-bold" : "text-muted-foreground"}>{r.overdue}</TableCell>
@@ -973,7 +983,10 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
                       <TableCell>{hm(r.hours)}</TableCell>
                       <TableCell>{r.activeProjects}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap text-xs">{r.lastActivity ? dateTime(r.lastActivity) : "-"}</TableCell>
-                      <TableCell><Button asChild variant="ghost" size="sm" className="h-7 text-xs"><Link to={`${base}/reports/staff-work?date=${todayStr}&staff=${r.staffId}`}>Report</Link></Button></TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg" onClick={() => openReport(r.staffId, r.name)}>Report</Button>
+                        <Button asChild variant="ghost" size="sm" className="h-7 text-xs ml-1" title="Today's timeline in Staff Work"><Link to={`${base}/reports/staff-work?date=${todayStr}&staff=${r.staffId}`}>Today</Link></Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1004,6 +1017,18 @@ export function WorkOverview({ period, from = "", to = "", registerExport }: { p
           )}
         </div>
       )}
+
+      <StaffWorkReportDialog
+        key={reportFor?.id || "none"} // a different staff member starts with fresh filters
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        staffId={reportFor?.id || null}
+        staffName={reportFor?.name}
+        period={period}
+        from={from}
+        to={to}
+        base={base}
+      />
     </div>
   );
 }

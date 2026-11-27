@@ -299,7 +299,9 @@ describe("Work Overview (Master Dashboard tab)", () => {
     fireEvent.change(screen.getByPlaceholderText("Search customer"), { target: { value: "beta" } });
     expect(screen.getByText("Customers — work done vs pending (1)")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: "Report" }));
+    // "Report" opens the staff report popup (staffWorkReport.test.tsx); "Today" goes to Staff Work.
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Today" }));
     expect(screen.getByTestId("where").textContent).toMatch(/^\/admin\/reports\/staff-work\?date=\d{4}-\d{2}-\d{2}&staff=s1$/);
   });
   it("hides the customer column when the user may not see customers", async () => {

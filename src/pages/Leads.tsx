@@ -32,7 +32,7 @@ import { noteService } from "@/api/services/note.service";
 import { useSettings } from "@/context/SettingsContext";
 import { Textarea } from "@/components/ui/textarea";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { MetaFormsFilterDropdown } from "@/components/leads/MetaFormsFilterDropdown";
 import { LeadColumnSettings } from "@/components/leads/LeadColumnSettings";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,6 +84,26 @@ const DATE_FILTER_OPTIONS = [
   { value: "last_7_days", label: "Last 7 Days" },
   { value: "last_30_days", label: "Last 30 Days" },
   { value: "custom", label: "Custom Range" },
+];
+
+// Import popup columns = sample-file headers; processLeadRows reads these keys.
+const LEAD_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Name", sample: "Rahul Sharma", required: true, aliases: ["Lead Name", "Full Name", "Customer Name", "Contact Name"] },
+  { key: "Phone", sample: "9876543210", aliases: ["phonenumber", "Phone Number", "Mobile", "Mobile No", "Mobile Number", "Contact", "Contact No", "Contact Number", "No", "Number", "WhatsApp", "WhatsApp Number", "Cell"] },
+  { key: "Email", sample: "rahul@example.com", aliases: ["E-mail", "Email Address", "Mail", "Mail Id"] },
+  { key: "Company", sample: "Sharma Traders", aliases: ["Company Name", "Business", "Bussiness", "Business Name", "Firm", "Organization"] },
+  { key: "City", sample: "Ahmedabad", aliases: ["Location", "Town", "Place"] },
+  { key: "Status", sample: "New", aliases: ["Lead Status", "Stage"] },
+  { key: "Source", sample: "Website", aliases: ["Lead Source"] },
+  { key: "Lead Value", sample: 25000, aliases: ["lead_value", "Value", "Amount", "Deal Value"] },
+  { key: "Position", sample: "Owner", core: false, aliases: ["Title", "Designation", "Job Title"] },
+  { key: "Website", sample: "www.sharmatraders.com", core: false, aliases: ["Web", "URL"] },
+  { key: "Address", sample: "12, MG Road", core: false, aliases: ["Full Address"] },
+  { key: "State", sample: "Gujarat", core: false },
+  { key: "Country", sample: "India", core: false },
+  { key: "Zip", sample: "380001", core: false, aliases: ["Pincode", "Pin Code", "Postal Code", "Zip Code", "PIN"] },
+  { key: "Tags", sample: "hot, follow-up", core: false, aliases: ["Tag", "Labels"] },
+  { key: "Description", sample: "Interested in billing software", core: false, aliases: ["Notes", "Note", "Remarks", "Requirement", "Details"] },
 ];
 
 const Leads = () => {
@@ -235,7 +255,9 @@ const Leads = () => {
     }
   };
 
-  interface LeadsPage { rows: any[]; total: number; pages: number; statusCounts: Record<string, number> }
+  interface LeadsPage { rows: any[]; total: number; pages: number; statusCounts: Record<string, number>; campaigns: string[] }
+  const uniqueCampaigns = (rows: any[]): string[] =>
+    Array.from(new Set(rows.map((l: any) => String(l.campaign || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   const { data: leadsResult, isLoading } = useQuery<LeadsPage>({
     queryKey: ["leads", itemsPerPage, currentPage, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, sourceFilter, assignedFilter, debouncedCampaign, whatsappOnly, convertedFilter, reminderFilter],
     queryFn: async () => {
@@ -249,7 +271,7 @@ const Leads = () => {
           const id = String(typeof l.status === "object" ? l.status?._id : l.status);
           statusCounts[id] = (statusCounts[id] || 0) + 1;
         });
-        return { rows, total: rows.length, pages: 1, statusCounts };
+        return { rows, total: rows.length, pages: 1, statusCounts, campaigns: uniqueCampaigns(rows) };
       }
 
       const range = resolveDateRange();
@@ -268,16 +290,20 @@ const Leads = () => {
         converted: convertedFilter !== "all" ? convertedFilter : undefined,
         reminder: reminderFilter !== "all" ? reminderFilter : undefined,
       });
-      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusCounts: {} };
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusCounts: {}, campaigns: [] };
       const statusCounts: Record<string, number> = {};
       (res?.statusCounts ?? []).forEach((s: any) => {
         if (s.status) statusCounts[s.status] = s.count;
       });
-      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1, statusCounts };
+      const rows = res?.data ?? [];
+      // Older backend without `campaigns` → fall back to this page's campaigns.
+      const campaigns = Array.isArray(res?.campaigns) ? res.campaigns : uniqueCampaigns(rows);
+      return { rows, total: res?.total ?? 0, pages: res?.pages ?? 1, statusCounts, campaigns };
     },
     placeholderData: keepPreviousData,
   });
   const leads: any[] = leadsResult?.rows ?? [];
+  const campaignOptions: string[] = leadsResult?.campaigns ?? [];
 
   const { data: statuses = [] } = useQuery<any[]>({
     queryKey: ["lead-statuses"],
@@ -289,10 +315,18 @@ const Leads = () => {
     queryFn: leadService.getSources,
   });
 
+  // /staff/assignable, not /staff: the full staff list needs the "Staff" module
+  // permission, so staff with only Leads access got an empty Assigned filter /
+  // picker and no assignee names. Inactive staff stay in `staff` so old leads
+  // still show their name, but pickers only offer active ones.
   const { data: staff = [] } = useQuery<any[]>({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff-assignable"],
+    queryFn: async () => {
+      const res: any = await staffService.getAssignable();
+      return Array.isArray(res) ? res : res?.data || [];
+    },
   });
+  const activeStaff = useMemo(() => staff.filter((s: any) => s.active !== false), [staff]);
 
   // Mirrors the backend's whatsappLeadCondition: created by the WhatsApp
   // integration, or tagged with the "WhatsApp" source.
@@ -622,25 +656,47 @@ const Leads = () => {
     const defaultStatusId = statuses.length > 0 ? statuses[0]._id : undefined;
     const defaultSourceId = sources.length > 0 ? sources[0]._id : undefined;
 
-    const leadsData = rows.map((row: any) => ({
-      name: row.name || row.Name || "",
-      email: row.email || row.Email || "",
-      company: row.company || row.Company || "",
-      phonenumber: row.phonenumber || row.phone || row.Phone || "",
-      position: row.position || row.Position || row.title || row.Title || "",
-      lead_value: Number(row.lead_value || row.leadValue || row.Value || 0) || 0,
-      address: row.address || row.Address || "",
-      city: row.city || row.City || "",
-      state: row.state || row.State || "",
-      country: row.country || row.Country || "",
-      zip: row.zip || row.Zip || "",
-      status: defaultStatusId,
-      source: defaultSourceId,
-    }));
+    // First non-empty value among the given keys (the import popup puts each
+    // mapped column under its LEAD_IMPORT_COLUMNS key; lower-case keys are
+    // older sheets), trimmed — numbers like 9876543210 come back as strings.
+    const pick = (row: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const v = row?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+      }
+      return "";
+    };
+    const byName = (list: any[], name: string) =>
+      name ? list.find((x: any) => String(x.name || "").trim().toLowerCase() === name.toLowerCase())?._id : undefined;
+
+    const leadsData = rows.map((row: any) => {
+      const value = pick(row, "Lead Value", "lead_value", "leadValue", "Value").replace(/[^0-9.]/g, "");
+      const title = pick(row, "Position", "position", "title", "Title");
+      return {
+        name: pick(row, "Name", "name"),
+        email: pick(row, "Email", "email"),
+        company: pick(row, "Company", "company"),
+        phonenumber: pick(row, "Phone", "phonenumber", "phone"),
+        title,
+        position: title,
+        lead_value: Number(value) || 0,
+        website: pick(row, "Website", "website"),
+        address: pick(row, "Address", "address"),
+        city: pick(row, "City", "city"),
+        state: pick(row, "State", "state"),
+        country: pick(row, "Country", "country"),
+        zip: pick(row, "Zip", "zip"),
+        tags: pick(row, "Tags", "tags"),
+        description: pick(row, "Description", "description"),
+        // A Status / Source column is used when it names an existing one; else the default.
+        status: byName(statuses, pick(row, "Status", "status")) || defaultStatusId,
+        source: byName(sources, pick(row, "Source", "source")) || defaultSourceId,
+      };
+    });
 
     const validLeads = leadsData.filter(l => l.name);
     if (validLeads.length === 0) {
-      toast({ title: "Error", description: "No valid leads found. Make sure a 'name' or 'Name' column exists.", variant: "destructive" });
+      toast({ title: "Error", description: "No valid leads found. Map a column to 'Name' in the import popup.", variant: "destructive" });
       return;
     }
     importLeadsMutation.mutate(validLeads as any);
@@ -868,13 +924,18 @@ const Leads = () => {
         const matchSource = sourceFilter === "all" || lSourceId === sourceFilter;
         const matchAssigned =
           assignedFilter === "all" || (assignedFilter === "unassigned" ? !lAssignedId : lAssignedId === assignedFilter);
-        const matchCampaign = !debouncedCampaign || (l.campaign || "") === debouncedCampaign;
+        // Part of the name, any case — same as the server-side filter.
+        const matchCampaign =
+          !debouncedCampaign || (l.campaign || "").toLowerCase().includes(debouncedCampaign.toLowerCase());
         const matchWhatsApp = !whatsappOnly || isWhatsAppLead(l);
         const matchConverted =
           convertedFilter === "all" || (convertedFilter === "yes" ? !!l.converted : !l.converted);
         const matchReminder =
           reminderFilter === "all" ||
-          (reminderFilter === "none" ? !l.pending_reminders : l.reminder_bucket === reminderFilter);
+          (reminderFilter === "none"
+            ? !l.pending_reminders
+            // Any pending reminder in the bucket (not just the next one) — same as the server.
+            : (l.reminder_buckets || (l.reminder_bucket ? [l.reminder_bucket] : [])).includes(reminderFilter));
 
         return matchSearch && matchStatus && matchMetaForm && matchDate &&
           matchSource && matchAssigned && matchCampaign && matchWhatsApp && matchConverted && matchReminder;
@@ -1273,7 +1334,16 @@ const Leads = () => {
               <MetaAdsDialog />
               {/* Temporarily hidden — uncomment to bring the "Website Forms" button back. */}
               {/* <WebsiteFormsDialog /> */}
-              <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
+              <ImportDialog
+                title="Import Leads"
+                triggerLabel="Import Leads"
+                columns={LEAD_IMPORT_COLUMNS}
+                onData={processLeadRows}
+                loading={importLeadsMutation.isPending}
+                templateFilename="leads_sample_import.xlsx"
+                sheetName="Leads"
+                mappingNote="Your sheet's columns (Name, Phone / Mobile, Email, Company, City, Status, Source...) are detected automatically — you can review and change the mapping before importing."
+              />
               <Dialog open={isNewLeadOpen} onOpenChange={(open) => open ? setIsNewLeadOpen(true) : closeLeadModal()}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
                     <Plus className="h-4 w-4 stroke-[3]" />
@@ -1371,7 +1441,7 @@ const Leads = () => {
                             <SelectValue placeholder="Select Staff" />
                           </SelectTrigger>
                           <SelectContent>
-                            {staff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
+                            {activeStaff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1385,7 +1455,7 @@ const Leads = () => {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
-                              {staff.map(s => {
+                              {activeStaff.map(s => {
                                 const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
                                 return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
                               })}
@@ -1925,7 +1995,7 @@ const Leads = () => {
                             <Select value={bulkState.assigned} onValueChange={(v) => setBulkState({...bulkState, assigned: v})} disabled={bulkState.massDelete || bulkState.convertToCustomer}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Staff" /></SelectTrigger>
                                 <SelectContent>
-                                    {staff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
+                                    {activeStaff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -1937,7 +2007,7 @@ const Leads = () => {
                                   <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
                                   <SelectContent>
                                       <SelectItem value="none">None</SelectItem>
-                                      {staff.map(s => {
+                                      {activeStaff.map(s => {
                                         const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
                                         return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
                                       })}
@@ -2085,7 +2155,7 @@ const Leads = () => {
                         className="h-9 text-xs"
                       />
                       <datalist id="lead-campaign-options">
-                        {Array.from(new Set(leads.map((l: any) => l.campaign).filter(Boolean))).map((c: any) => (
+                        {campaignOptions.map((c) => (
                           <option key={c} value={c} />
                         ))}
                       </datalist>
@@ -2097,7 +2167,7 @@ const Leads = () => {
                         <SelectContent>
                           <SelectItem value="all">Anyone</SelectItem>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {(staff as any[]).map((s) => (
+                          {(activeStaff as any[]).map((s) => (
                             <SelectItem key={s._id} value={s._id}>{`${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email}</SelectItem>
                           ))}
                         </SelectContent>

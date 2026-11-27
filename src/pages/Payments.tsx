@@ -63,12 +63,25 @@ import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, Tab
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { defaultPageSize } from "@/lib/tablePageSize";
+
+// Import popup columns = sample-file headers the backend's importPayments reads.
+const PAYMENT_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Amount", sample: 15000, required: true, aliases: ["Paid Amount", "Payment Amount", "Received"] },
+  { key: "Date", sample: "2026-12-01", aliases: ["Payment Date"] },
+  { key: "Company Name", sample: "Existing Customer Name", aliases: ["Company", "Customer", "Client", "Party Name"] },
+  { key: "Payment Mode", sample: "Bank Transfer", aliases: ["Mode", "paymentmode", "Payment Method"] },
+  { key: "Transaction ID", sample: "UTR123456789", aliases: ["transactionid", "Txn ID", "UTR", "Reference No"] },
+  { key: "Invoice #", sample: "INV-1001", aliases: ["Invoice", "Invoice Number", "Invoice No"] },
+  { key: "Voucher Number", sample: "RCPT-0001", core: false, aliases: ["Voucher No", "Receipt No"] },
+  { key: "Bill Date", sample: "2026-11-25", core: false },
+  { key: "Journal", sample: "Bank", core: false },
+];
 
 const Payments = () => {
   const [search, setSearch] = useState("");
@@ -512,7 +525,16 @@ const Payments = () => {
                 { header: "Transaction ID", key: (p) => p.transactionid || "-" },
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Payments"
+              triggerLabel="Import"
+              columns={PAYMENT_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              templateFilename="payments_sample_import.xlsx"
+              sheetName="Payments"
+              mappingNote="'Invoice #' links the payment to an existing invoice with that number. Dates as YYYY-MM-DD or DD-MM-YYYY."
+            />
             {isPilot && can("Payments", "create") && (
               <Button
                 size="sm"
